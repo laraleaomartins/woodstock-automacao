@@ -66,6 +66,9 @@ function garantirPlanilha() {
   var conf = ss.getSheetByName(ABA.CONFIG);
   if (!conf) {
     conf = criarAba(ss, ABA.CONFIG, ['Chave', 'Valor', 'O que faz']);
+    // Texto puro na coluna do valor: sem isso a planilha transforma "08:00" num valor
+    // de hora, e o sistema passa a ler uma data de 1899 no lugar do horário.
+    conf.getRange(2, 2, 200, 1).setNumberFormat('@');
     conf.getRange(2, 1, CONFIG_PADRAO.length, 3).setValues(CONFIG_PADRAO);
     conf.setColumnWidth(1, 220).setColumnWidth(2, 140).setColumnWidth(3, 620);
   } else {

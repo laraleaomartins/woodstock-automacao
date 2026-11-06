@@ -21,6 +21,7 @@ function doGet(e) {
       case 'jobs':     return json({ ok: true, jobs: jobsDeArtes(Number(p.limite || 3)) });
       case 'arquivo':  return json({ ok: true, arquivo: arquivoEmBase64(p.id) });
       case 'estado':   return json({ ok: true, estado: estadoDoSistema() });
+      case 'diag':     return json({ ok: true, horarios: diagnosticoHorarios() });
       default:         return json({ ok: false, erro: 'ação desconhecida: ' + p.acao });
     }
   } catch (erro) {
@@ -56,6 +57,23 @@ function doPost(e) {
         return json({ ok: true, resultado: configurarInstagram(corpo.token, corpo.business_id, corpo.ig_user_id) });
       case 'testar_instagram':
         return json({ ok: true, resultado: testarInstagram() });
+      case 'recalcular':
+        return json({ ok: true, resultado: recalcularProgramacao(corpo.id) });
+      case 'aprovar':
+        return json({ ok: true, resultado: aprovarProgramacao(corpo.id) });
+      case 'cancelar_post':
+        return json({ ok: true, resultado: painelCancelarPost(corpo.chave, corpo.post_id) });
+      case 'definir_config':
+        return json({ ok: true, resultado: definirCfg(corpo.nome, corpo.valor) });
+      case 'adiantar_post':
+        return json({ ok: true, resultado: adiantarPost(corpo.post_id) });
+      case 'publicar_agora':
+        return json({ ok: true, resultado: publicarVencidos() });
+      case 'listar_posts':
+        return json({ ok: true, posts: linhas(ABA.AGENDAMENTOS).map(function (a) {
+          return { id: a.PostId, canal: a.Canal, opcao: a.Opcao, quando: a.QuandoISO,
+            situacao: a.Situacao, midia: a.IgMediaId, erro: a.Erro, url: a.ArquivoUrl };
+        }) });
       default:
         return json({ ok: false, erro: 'ação desconhecida: ' + corpo.acao });
     }
@@ -158,4 +176,18 @@ function linkPainel() {
   var url = ScriptApp.getService().getUrl();
   if (!url) return '';
   return 'Painel: ' + url + '?chave=' + segredo('API_TOKEN');
+}
+
+/** Diagnóstico dos horários: mostra o que está na CONFIG e como o sistema entendeu. */
+function diagnosticoHorarios() {
+  var saida = {};
+  ['HORARIO_INICIAL', 'HORARIO_LIMITE', 'INTERVALO_FEED_HORAS', 'ANTECEDENCIA_DIAS'].forEach(function (c) {
+    var bruto = cfg(c);
+    saida[c] = {
+      valor: String(bruto),
+      tipo: Object.prototype.toString.call(bruto),
+      interpretado: /HORARIO/.test(c) ? JSON.stringify(paraHora(bruto)) : String(Number(bruto))
+    };
+  });
+  return saida;
 }

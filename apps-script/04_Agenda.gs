@@ -23,15 +23,19 @@ function agendarProgramacao(prog, artes, legendas) {
   }
 
   var ocupados = horariosJaOcupados();
-  var postos = [];
+  // Identificadores já usados. Sem isto, recalcular criaria peças com o mesmo
+  // identificador das antigas, e cancelar ou adiantar acertaria a linha errada.
+  var usados = {};
+  linhas(ABA.AGENDAMENTOS).forEach(function (a) { usados[String(a.PostId)] = true; });
 
+  var postos = [];
   if (cfgSim('FEED_ATIVO')) {
     postos = postos.concat(distribuir(prog, artes, legendas, 'FEED',
-      primeiro, cfgNum('INTERVALO_FEED_HORAS'), limiteFinal, ocupados));
+      primeiro, cfgNum('INTERVALO_FEED_HORAS'), limiteFinal, ocupados, usados));
   }
   if (cfgSim('STORIES_ATIVO')) {
     postos = postos.concat(distribuir(prog, artes, legendas, 'STORY',
-      primeiro, cfgNum('INTERVALO_STORIES_HORAS'), limiteFinal, ocupados));
+      primeiro, cfgNum('INTERVALO_STORIES_HORAS'), limiteFinal, ocupados, usados));
   }
 
   if (!postos.length) {
@@ -55,7 +59,7 @@ function agendarProgramacao(prog, artes, legendas) {
 }
 
 /** Espalha as 3 opções (A, B, C) de um canal pela janela disponível. */
-function distribuir(prog, artes, legendas, canal, inicio, intervaloHoras, limiteFinal, ocupados) {
+function distribuir(prog, artes, legendas, canal, inicio, intervaloHoras, limiteFinal, ocupados, usados) {
   var saida = [];
   var quando = new Date(inicio.getTime());
   ['A', 'B', 'C'].forEach(function (opcao) {
@@ -66,7 +70,7 @@ function distribuir(prog, artes, legendas, canal, inicio, intervaloHoras, limite
     if (quando.getTime() > limiteFinal.getTime()) return;
     ocupados.push({ canal: canal, ts: quando.getTime() });
     saida.push({
-      postId: prog.ID + '_' + canal + '_' + opcao,
+      postId: identificadorLivre(prog.ID + '_' + canal + '_' + opcao, usados || {}),
       canal: canal,
       opcao: opcao,
       url: url,
@@ -240,4 +244,40 @@ function mudarSituacao(programacaoId, situacao, erro) {
   if (erro !== undefined) campos.Erro = String(erro).slice(0, 900);
   gravarCampos(ABA.PROGRAMACOES, prog._linha, campos);
   return true;
+}
+
+/** Puxa uma publicação para agora. Usado no teste de publicação real. */
+function adiantarPost(postId) {
+  var post = acharPost(postId);
+  if (!post) throw new Error('Publicação não encontrada: ' + postId);
+  gravarCampos(ABA.AGENDAMENTOS, post._linha, {
+    QuandoISO: new Date(Date.now() - 60000).toISOString(),
+    Situacao: SIT_POST.AGENDADO
+  });
+  registrar('INFO', post.ProgramacaoId, 'POST_ADIANTADO', postId);
+  return true;
+}
+
+/** Garante identificador único de publicação; na 2ª vez vira ..._r2, depois _r3. */
+function identificadorLivre(base, usados) {
+  if (!usados[base]) { usados[base] = true; return base; }
+  for (var n = 2; n < 200; n++) {
+    if (!usados[base + '_r' + n]) { usados[base + '_r' + n] = true; return base + '_r' + n; }
+  }
+  return base + '_' + Date.now();
+}
+
+/**
+ * Acha a linha de uma publicação. Havendo mais de uma com o mesmo identificador
+ * (agendamentos antigos de antes da correção), prefere a que ainda está ativa.
+ */
+function acharPost(postId) {
+  var iguais = linhas(ABA.AGENDAMENTOS).filter(function (a) {
+    return String(a.PostId) === String(postId);
+  });
+  if (!iguais.length) return null;
+  var ativa = iguais.filter(function (a) {
+    return a.Situacao === SIT_POST.AGENDADO || a.Situacao === SIT_POST.PAUSADO;
+  });
+  return ativa.length ? ativa[ativa.length - 1] : iguais[iguais.length - 1];
 }

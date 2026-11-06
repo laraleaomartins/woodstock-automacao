@@ -59,6 +59,7 @@ export function criarAmbiente() {
         return faixa(r, c, nr, nc);
       },
       setValue(v) { garantir(r, c); celulas()[r - 1][c - 1] = v; return faixa(r, c, nr, nc); },
+      setNumberFormat() { return faixa(r, c, nr, nc); },
       setFontWeight() { return faixa(r, c, nr, nc); },
       setBackground() { return faixa(r, c, nr, nc); },
       setFontColor() { return faixa(r, c, nr, nc); }

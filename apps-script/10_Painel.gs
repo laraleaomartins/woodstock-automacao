@@ -118,9 +118,7 @@ function painelDefinirModo(chave, id, modo) {
 
 function painelCancelarPost(chave, postId) {
   exigirChave(chave);
-  var post = linhas(ABA.AGENDAMENTOS).filter(function (a) {
-    return String(a.PostId) === String(postId);
-  })[0];
+  var post = acharPost(postId);
   if (!post) throw new Error('Publicação não encontrada.');
   gravarCampo(ABA.AGENDAMENTOS, post._linha, 'Situacao', SIT_POST.CANCELADO);
   registrar('INFO', post.ProgramacaoId, 'POST_CANCELADO', postId);

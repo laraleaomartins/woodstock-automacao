@@ -93,7 +93,13 @@ function cfg(chave) {
     var valores = aba(ABA.CONFIG).getDataRange().getValues();
     for (var i = 1; i < valores.length; i++) {
       if (String(valores[i][0]).trim() === chave) {
-        var v = String(valores[i][1]).trim();
+        // A planilha converte "08:00" num valor de hora e devolve um objeto de data
+        // de 1899. Virar texto aqui daria "Sat Dec 30 1899 08:00:00...", e quem lesse
+        // isso entenderia qualquer coisa. Então formata de volta para HH:mm.
+        var bruto = valores[i][1];
+        var v = (Object.prototype.toString.call(bruto) === '[object Date]')
+          ? Utilities.formatDate(bruto, TZ, 'HH:mm')
+          : String(bruto).trim();
         cache.put('cfg_' + chave, v, 60);
         return v;
       }
@@ -112,6 +118,7 @@ function cfgSim(chave) { return String(cfg(chave)).toUpperCase() === 'SIM'; }
 
 function definirCfg(chave, valor) {
   var planilha = aba(ABA.CONFIG);
+  planilha.getRange(2, 2, Math.max(planilha.getLastRow() - 1, 1), 1).setNumberFormat('@');
   var valores = planilha.getDataRange().getValues();
   for (var i = 1; i < valores.length; i++) {
     if (String(valores[i][0]).trim() === chave) {

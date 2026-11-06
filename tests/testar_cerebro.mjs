@@ -180,6 +180,38 @@ teste('Mudar os intervalos pelo painel muda o calendário, sem tocar em código'
   conferir(feed[0].getTime() === primeiro.getTime(), 'a divulgação começou 4 dias antes, às 08:00');
 });
 
+teste('Horário gravado como hora pela planilha ainda é entendido certo', (ctx, estado) => {
+  // A planilha converte "08:00" num valor de hora e devolve um objeto de data de 1899.
+  // Já aconteceu em produção: o sistema leu "23:18" e espaçou os posts de 24 em 24h.
+  const comoAPlanilhaDevolve = new Date(1899, 11, 30, 8, 0, 0);
+  const limite = new Date(1899, 11, 30, 23, 0, 0);
+  const conf = estado.abas.CONFIG;
+  conf.forEach((linha) => {
+    if (linha[0] === 'HORARIO_INICIAL') linha[1] = comoAPlanilhaDevolve;
+    if (linha[0] === 'HORARIO_LIMITE') linha[1] = limite;
+  });
+  conferir(ctx.cfg('HORARIO_INICIAL') === '08:00',
+    'a hora voltou a ser lida como 08:00 (veio "' + ctx.cfg('HORARIO_INICIAL') + '")');
+  conferir(JSON.stringify(ctx.paraHora(comoAPlanilhaDevolve)) === '{"h":8,"min":0}',
+    'o objeto de data de 1899 é interpretado como 8h');
+  conferir(JSON.stringify(ctx.paraHora('Sat Dec 30 1899 08:00:00 GMT-0306')) === '{"h":8,"min":0}',
+    'e o texto completo dessa data também');
+
+  ctx.definirCfg('MODO_OPERACAO', 'AUTOMATICO');
+  const dataShow = emDias(12);
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Hora Da Planilha', data: iso(dataShow) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+
+  const feed = ctx.linhas('AGENDAMENTOS').filter((a) => a.Canal === 'FEED')
+    .map((a) => new Date(a.QuandoISO)).sort((x, y) => x - y);
+  conferir(feed.length === 3, 'as 3 peças de feed foram agendadas (saíram ' + feed.length + ')');
+  conferir(feed[0].getHours() === 8 && feed[0].getMinutes() === 0,
+    'a primeira saiu às 08:00, não às 23:18');
+  const horas = (feed[1] - feed[0]) / 3600000;
+  conferir(Math.abs(horas - 5) < 0.1, 'o intervalo voltou a ser de 5h (ficou ' + horas + 'h)');
+});
+
 teste('Desligar o feed para de agendar feed e mantém os stories', (ctx, estado) => {
   ctx.definirCfg('MODO_OPERACAO', 'AUTOMATICO');
   ctx.definirCfg('FEED_ATIVO', 'NAO');
@@ -234,6 +266,31 @@ teste('Pausar segura as publicações; retomar devolve', (ctx, estado) => {
   conferir(ctx.linhas('AGENDAMENTOS').every((a) => a.Situacao === 'AGENDADO'), 'tudo retomado');
   conferir(ctx.linhas('AGENDAMENTOS').every((a) => new Date(a.QuandoISO) > new Date()),
     'as que já tinham vencido ganharam horário novo em vez de sair atrasadas');
+});
+
+teste('Recalcular não cria peças com identificador repetido', (ctx, estado) => {
+  // Já aconteceu em produção: ao recalcular, as peças novas nasciam com o mesmo
+  // identificador das antigas. Cancelar acertava a linha errada e a mesma arte
+  // podia ir ao ar duas vezes.
+  ctx.definirCfg('MODO_OPERACAO', 'AUTOMATICO');
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Recalculada', data: iso(emDias(9)) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  ctx.recalcularProgramacao(id);
+  ctx.recalcularProgramacao(id);
+
+  const todos = ctx.linhas('AGENDAMENTOS').map((a) => String(a.PostId));
+  conferir(new Set(todos).size === todos.length,
+    'os ' + todos.length + ' identificadores são todos diferentes');
+
+  const ativos = ctx.linhas('AGENDAMENTOS').filter((a) => a.Situacao === 'AGENDADO');
+  conferir(ativos.length === 6, 'sobraram exatamente 6 peças na fila');
+
+  const alvo = ativos[0].PostId;
+  ctx.painelCancelarPost('chave-de-teste', alvo);
+  const depois = ctx.linhas('AGENDAMENTOS').filter((a) => String(a.PostId) === String(alvo));
+  conferir(depois.every((a) => a.Situacao === 'CANCELADO'),
+    'cancelar acertou a linha certa, não uma antiga');
 });
 
 teste('Cancelar tira tudo da fila', (ctx, estado) => {

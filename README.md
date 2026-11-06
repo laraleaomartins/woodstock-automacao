@@ -10,13 +10,13 @@ ligado e sem custo nenhum.
 |---|---|
 | Gerador das artes (os 3 layouts do kit) | **funcionando** — saída conferida contra as peças de referência |
 | Recorte de fundo automático das fotos | **funcionando** — rembg local e gratuito; 99,4% de acerto em foto limpa |
-| Cérebro (formulário, pastas, legendas, calendário, painel) | **escrito e testado** — 80 verificações passando no simulador |
+| Cérebro (formulário, pastas, legendas, calendário, painel) | **no ar e testado** — 109 verificações passando |
 | Escolha da foto certa para cada layout | **funcionando** — 11 verificações, gabarito no exemplo do kit |
 | Oficina das artes (GitHub Actions) | **escrita e testada de ponta a ponta localmente** |
 | Instalação na conta Google | **feita e verificada** — planilha, pastas, painel e gatilhos no ar |
 | Página de inscrição das bandas | **no ar** — feita aqui dentro, sem exigir conta Google da banda |
 | Conexão com o Instagram | **conectada e verificada** — acesso sem validade, pelo login unificado |
-| Publicação automática | **pronta, com a trava de segurança ligada** — nada sai sem você destravar |
+| Publicação automática | **comprovada em 06/11/2026** — uma peça publicada de verdade no Instagram; trava religada em seguida |
 | Convite de colaboração ("Collab") | tentado automaticamente; vira aviso por e-mail quando a Meta recusa |
 
 Nada aqui está simulado para parecer pronto: o que depende de conta externa está marcado como

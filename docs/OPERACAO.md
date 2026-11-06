@@ -127,3 +127,21 @@ Peças da conexão, para referência:
 Para trocar para o perfil do bar: adicione `woodstockrockbar` como Testador do Instagram no
 aplicativo, aceite o convite pelo perfil do bar, gere um token novo e me passe junto com o
 número da conta.
+
+## Dois defeitos encontrados no teste de publicação real
+
+Valem registro porque os dois só apareceram rodando de verdade, e os dois têm teste
+automático agora.
+
+**O horário virava 23:18.** A planilha converte `08:00` num valor de hora e devolve ao
+sistema um objeto de data de 1899. Virando texto, isso dava
+`Sat Dec 30 1899 08:00:00...`, e o leitor de horário pegava os primeiros números que via —
+o 30 do dia e o 18 de 1899. Resultado: início e limite iguais, posts de 24 em 24 horas e
+a terceira peça caindo fora por passar do show. Corrigido em três camadas: a leitura
+reconhece a data, a gravação força texto puro, e o leitor de horário ignora números de
+data.
+
+**Peças com identificador repetido.** Ao recalcular, as publicações novas nasciam com o
+mesmo identificador das antigas. Cancelar ou adiantar acertava a linha errada, e a mesma
+arte poderia ir ao ar duas vezes. Agora o identificador é único (vira `_r2`, `_r3`) e as
+buscas preferem a linha ativa.

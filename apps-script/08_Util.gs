@@ -74,6 +74,14 @@ function paraHora(valor) {
     return { h: valor.getHours(), min: valor.getMinutes() };
   }
   var t = String(valor).trim().toUpperCase();
+
+  // Rede de segurança: se vier um texto de data inteiro ("SAT DEC 30 1899 08:00:00..."),
+  // pegar "os primeiros números" acharia o dia e o ano em vez da hora.
+  var comoData = t.match(/\b(\d{1,2}):(\d{2})(?::\d{2})?\b/);
+  if (comoData && /\d{4}/.test(t)) {
+    return { h: Math.min(Number(comoData[1]), 23), min: Number(comoData[2]) };
+  }
+
   var pm = t.indexOf('PM') >= 0, am = t.indexOf('AM') >= 0;
   var m = t.match(/(\d{1,2})\s*[:H]?\s*(\d{2})?/);
   if (!m) return { h: 20, min: 0 };
