@@ -69,6 +69,9 @@ function criarProgramacao(d, origemId, origem) {
     JSON.stringify({ recebidos: arquivos }), '', '', '', origemId, new Date()
   ]);
 
+  // Avisa a oficina na hora, em vez de esperar o ciclo dela.
+  cutucarGithub();
+
   registrar('INFO', id, 'PROGRAMACAO_CRIADA',
     d.banda + ' em ' + fmt(d.dataShow, 'dd/MM/yyyy') + ' | ' + arquivos.fotos.length +
     ' foto(s), logo=' + (arquivos.logo ? 'sim' : 'nao') + ' | modo=' + modo);

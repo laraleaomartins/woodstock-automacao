@@ -23,3 +23,6 @@ docs/evidencias/
 
 # fotos cruas baixadas durante a producao
 docs/artes/**/RECEBIDOS/
+
+# arquivo de senhas: nunca vai para o repositorio publico
+CREDENCIAIS-NAO-PUBLICAR.md

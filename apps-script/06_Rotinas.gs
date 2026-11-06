@@ -34,14 +34,24 @@ function cutucarGithub() {
   });
   if (!pendentes.length) return;
   try {
-    UrlFetchApp.fetch('https://api.github.com/repos/' + repo + '/dispatches', {
-      method: 'post',
-      contentType: 'application/json',
-      muteHttpExceptions: true,
-      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' },
-      payload: JSON.stringify({ event_type: 'produzir-artes' })
-    });
+    // Dispara o fluxo pelo endereço de "workflow dispatch": a credencial precisa
+    // apenas de permissão de Actions, sem poder ler nem alterar o código.
+    var resp = UrlFetchApp.fetch(
+      'https://api.github.com/repos/' + repo + '/actions/workflows/artes.yml/dispatches', {
+        method: 'post',
+        contentType: 'application/json',
+        muteHttpExceptions: true,
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' },
+        payload: JSON.stringify({ ref: 'main' })
+      });
+    if (resp.getResponseCode() >= 300) {
+      throw new Error('o GitHub respondeu ' + resp.getResponseCode() + ': ' +
+        limparSegredos(resp.getContentText()).slice(0, 200));
+    }
+    registrar('INFO', '', 'GITHUB_AVISADO',
+      pendentes.length + ' programação(ões) esperando arte; produção disparada na hora.');
   } catch (e) {
+    // Não é grave: sem o aviso, o ciclo do GitHub pega no próximo giro.
     registrar('AVISO', '', 'GITHUB_NAO_AVISADO', e.message);
   }
 }

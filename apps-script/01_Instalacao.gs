@@ -322,3 +322,21 @@ function frequenciaDaPublicacao(minutos) {
   registrar('INFO', '', 'FREQUENCIA_PUBLICACAO', 'A fila passa a ser conferida a cada ' + n + ' min.');
   return 'Conferindo a fila a cada ' + n + ' minutos.';
 }
+
+/** Guarda a credencial que permite ao Google avisar o GitHub na hora. */
+function configurarGithub(token, repositorio) {
+  definirSegredo('GITHUB_TOKEN', String(token || '').trim());
+  definirSegredo('GITHUB_REPO', String(repositorio || '').trim());
+  var antes = linhas(ABA.LOGS).length;
+  cutucarGithub();
+  var depois = linhas(ABA.LOGS);
+  var ultimo = depois.length > antes ? String(depois[depois.length - 1].Evento) : '(nada a disparar)';
+  registrar('INFO', '', 'CREDENCIAL_GITHUB', 'Credencial do GitHub guardada para ' + repositorio);
+  return 'Guardada. Resultado do primeiro aviso: ' + ultimo;
+}
+
+/** Dispara a oficina agora, sem esperar ciclo nenhum. */
+function dispararOficina() {
+  cutucarGithub();
+  return 'Pedido enviado ao GitHub.';
+}

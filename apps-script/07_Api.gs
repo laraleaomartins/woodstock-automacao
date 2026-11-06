@@ -59,6 +59,10 @@ function doPost(e) {
         return json({ ok: true, resultado: testarInstagram() });
       case 'frequencia_publicacao':
         return json({ ok: true, resultado: frequenciaDaPublicacao(corpo.minutos) });
+      case 'conectar_github':
+        return json({ ok: true, resultado: configurarGithub(corpo.token, corpo.repo) });
+      case 'disparar_oficina':
+        return json({ ok: true, resultado: dispararOficina() });
       case 'recalcular':
         return json({ ok: true, resultado: recalcularProgramacao(corpo.id) });
       case 'aprovar':
