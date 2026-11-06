@@ -15,7 +15,8 @@ ligado e sem custo nenhum.
 | Oficina das artes (GitHub Actions) | **escrita e testada de ponta a ponta localmente** |
 | Instalação na conta Google | **feita e verificada** — planilha, pastas, painel e gatilhos no ar |
 | Página de inscrição das bandas | **no ar** — feita aqui dentro, sem exigir conta Google da banda |
-| Publicação no Instagram | **pendente** — depende das credenciais da Meta |
+| Conexão com o Instagram | **conectada e verificada** — acesso sem validade, pelo login unificado |
+| Publicação automática | **pronta, com a trava de segurança ligada** — nada sai sem você destravar |
 | Convite de colaboração ("Collab") | tentado automaticamente; vira aviso por e-mail quando a Meta recusa |
 
 Nada aqui está simulado para parecer pronto: o que depende de conta externa está marcado como

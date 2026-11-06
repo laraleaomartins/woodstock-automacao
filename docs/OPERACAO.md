@@ -103,3 +103,27 @@ final tem 1080) e cai direto na mesma esteira. Custo zero, igual.
 
 O formulário do Google chegou a ser criado na instalação e **não deve ser usado** — ele não tem
 os campos de foto. Pode apagar.
+
+## O acesso ao Instagram
+
+Conectado pelo "login unificado" da Meta, que **não exige Página do Facebook** — o ativo
+ligado é a própria conta do Instagram.
+
+O acesso é um token de usuário do sistema e **não tem validade**: não vence em 60 dias e não
+precisa ser renovado. A rotina diária deixou de renovar e passou a só conferir se ele continua
+valendo, avisando por e-mail se alguém revogar.
+
+A única forma de ele parar é alguém remover o aplicativo em Instagram → Configurações →
+Aplicativos e sites. Se isso acontecer, você recebe o aviso e geramos outro.
+
+Peças da conexão, para referência:
+
+| O quê | Valor |
+|---|---|
+| Aplicativo na Meta | Woodstock Agenda (1519690439993683) |
+| Portfólio empresarial | Woodstock Rock Bar (4019848544991728) |
+| Conta conectada no teste | @laritaleao |
+
+Para trocar para o perfil do bar: adicione `woodstockrockbar` como Testador do Instagram no
+aplicativo, aceite o convite pelo perfil do bar, gere um token novo e me passe junto com o
+número da conta.

@@ -140,7 +140,15 @@ function testarInstagram() {
  * número nenhum. Tenta pelos ativos do portfólio empresarial e, se não achar, pelas
  * contas ligadas às Páginas (caminho antigo), nessa ordem.
  */
-function descobrirContaInstagram() {
+function descobrirContaInstagram(idInformado) {
+  // Quando o número vem de fora, só confirma que ele responde e guarda.
+  if (idInformado) {
+    var conta = chamarGraph(String(idInformado).trim(), 'get', { fields: 'id,username' });
+    definirSegredo('IG_USER_ID', String(conta.id));
+    registrar('INFO', '', 'CONTA_IG', 'Conectado a @' + conta.username + ' (id ' + conta.id + ')');
+    return { id: String(conta.id), username: conta.username };
+  }
+
   var tentativas = [];
   var negocio = segredo('BUSINESS_ID');
 

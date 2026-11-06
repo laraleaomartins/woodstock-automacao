@@ -52,6 +52,10 @@ function doPost(e) {
         return json({ ok: true, resultado: registrarArtesProntas(corpo.id, corpo.artes, corpo.avisos) });
       case 'falha_artes':
         return json({ ok: true, resultado: registrarFalhaDeArtes(corpo.id, corpo.erro) });
+      case 'conectar_instagram':
+        return json({ ok: true, resultado: configurarInstagram(corpo.token, corpo.business_id, corpo.ig_user_id) });
+      case 'testar_instagram':
+        return json({ ok: true, resultado: testarInstagram() });
       default:
         return json({ ok: false, erro: 'ação desconhecida: ' + corpo.acao });
     }
