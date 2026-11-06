@@ -291,8 +291,9 @@ function mostrarTokenDaApi() {
  * Guarda o acesso ao Instagram. Só precisa do token de longa duração: o identificador
  * da conta o próprio sistema descobre, e a renovação não usa chave secreta.
  */
-function configurarInstagram(tokenLongo) {
-  var t = String(tokenLongo || '').trim();
+function configurarInstagram(token, idDoNegocio) {
+  var t = String(token || '').trim();
+  if (idDoNegocio) definirSegredo('BUSINESS_ID', String(idDoNegocio).trim());
   if (t.length < 30) throw new Error('Token vazio ou curto demais.');
   definirSegredo('IG_TOKEN', t);
   var conta = descobrirContaInstagram();

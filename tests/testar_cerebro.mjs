@@ -403,8 +403,8 @@ teste('O endereço da arte vai para a Meta como JPEG público', (ctx, estado) =>
   ctx.publicarVencidos();
   const criacao = chamadas.find((c) => String(c.url).includes('/media') && !String(c.url).includes('media_publish'));
   conferir(!!criacao, 'o contêiner da imagem foi criado na Meta');
-  conferir(String(criacao.url).startsWith('https://graph.instagram.com/'),
-    'foi pelo caminho que não exige Página do Facebook (graph.instagram.com)');
+  conferir(String(criacao.url).startsWith("https://graph.facebook.com/"),
+    'o endereço da API é o do login unificado (graph.facebook.com)');
   conferir(String(criacao.opcoes.payload.image_url).endsWith('.jpg'),
     'a imagem enviada é JPEG, como a Meta exige');
   conferir(criacao.opcoes.payload.caption.includes('PUBLICA'), 'a legenda foi junto');

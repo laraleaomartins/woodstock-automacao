@@ -7,13 +7,13 @@
  *
  * A API não agenda: quem agenda é este sistema, que a cada 15 minutos publica o que venceu.
  *
- * Caminho usado: "login unificado" (graph.instagram.com), que conecta direto na conta
- * profissional do Instagram. O caminho antigo (graph.facebook.com) exigiria amarrar o
- * perfil a uma Página do Facebook — o bar não tem e não quer. Aqui a renovação do acesso
- * também é mais simples: não precisa da chave secreta do aplicativo.
+ * Caminho usado: "login unificado". Nele o ativo conectado é a própria conta do
+ * Instagram — não é preciso ter Página do Facebook, que o bar não tem. O acesso é um
+ * token de usuário do sistema, que a Meta emite SEM VALIDADE: não vence em 60 dias e
+ * não precisa de renovação nem de chave secreta.
  */
 
-var GRAPH = 'https://graph.instagram.com/v23.0/';
+var GRAPH = 'https://graph.facebook.com/v23.0/';
 
 function igConfigurado() {
   return !!(segredo('IG_USER_ID') && segredo('IG_TOKEN'));
@@ -125,54 +125,78 @@ function cotaRestante() {
 
 function testarInstagram() {
   if (!igConfigurado()) return 'Instagram ainda não conectado. Rode configurarInstagram(...).';
-  var eu = chamarGraph('me', 'get', { fields: 'user_id,username,account_type' });
+  var eu = chamarGraph(segredo('IG_USER_ID'), 'get',
+    { fields: 'id,username,name,followers_count' });
   var cota = cotaRestante();
-  var texto = 'Conectado como @' + eu.username + ' (conta ' + (eu.account_type || '?') +
-    ', id ' + (eu.user_id || eu.id) + ')' +
+  var texto = 'Conectado como @' + eu.username + ' (id ' + eu.id + ')' +
+    (eu.followers_count !== undefined ? ', ' + eu.followers_count + ' seguidores' : '') +
     (cota ? ' | cota: ' + cota.usado + '/' + cota.limite + ' usadas nas últimas 24h' : '');
   console.log(texto);
   return texto;
 }
 
 /**
- * Descobre sozinho o identificador da conta a partir do acesso, para não depender de
- * ninguém copiar número nenhum.
+ * Descobre sozinho o identificador da conta do Instagram, para ninguém precisar copiar
+ * número nenhum. Tenta pelos ativos do portfólio empresarial e, se não achar, pelas
+ * contas ligadas às Páginas (caminho antigo), nessa ordem.
  */
 function descobrirContaInstagram() {
-  var eu = chamarGraph('me', 'get', { fields: 'user_id,username' });
-  var id = String(eu.user_id || eu.id || '');
-  if (!id) throw new Error('O Instagram não devolveu o identificador da conta.');
-  definirSegredo('IG_USER_ID', id);
-  registrar('INFO', '', 'CONTA_IG', 'Conectado a @' + eu.username + ' (id ' + id + ')');
-  return { id: id, username: eu.username };
+  var tentativas = [];
+  var negocio = segredo('BUSINESS_ID');
+
+  if (negocio) {
+    ['owned_instagram_accounts', 'client_instagram_accounts', 'instagram_accounts']
+      .forEach(function (caminho) {
+        tentativas.push(function () {
+          var r = chamarGraph(negocio + '/' + caminho, 'get', { fields: 'id,username' });
+          return (r.data || [])[0];
+        });
+      });
+  }
+  tentativas.push(function () {
+    var paginas = chamarGraph('me/accounts', 'get', { fields: 'instagram_business_account{id,username}' });
+    var achada = (paginas.data || []).filter(function (p) { return p.instagram_business_account; })[0];
+    return achada && achada.instagram_business_account;
+  });
+
+  for (var i = 0; i < tentativas.length; i++) {
+    try {
+      var conta = tentativas[i]();
+      if (conta && conta.id) {
+        definirSegredo('IG_USER_ID', String(conta.id));
+        registrar('INFO', '', 'CONTA_IG',
+          'Conectado a @' + (conta.username || '?') + ' (id ' + conta.id + ')');
+        return { id: String(conta.id), username: conta.username || '' };
+      }
+    } catch (e) {
+      registrar('INFO', '', 'BUSCA_CONTA_IG', 'Tentativa ' + (i + 1) + ' não serviu: ' + e.message);
+    }
+  }
+  throw new Error('Não encontrei nenhuma conta do Instagram ligada a este acesso. ' +
+    'Confirme que a conta foi adicionada como ativo na configuração do aplicativo.');
 }
 
 /**
  * O token do Instagram vale 60 dias. Esta rotina roda todo dia e renova enquanto ele
  * ainda está válido, para o sistema não parar sozinho.
  */
+/**
+ * O acesso do usuário do sistema não vence, então não há o que renovar. Esta rotina
+ * passou a ser uma ronda: confere todo dia se o acesso continua válido e avisa se
+ * alguém o revogou — que é a única forma de ele parar de funcionar.
+ */
 function rotinaRenovarToken() {
   if (!igConfigurado()) return;
   try {
-    // Neste caminho a renovação pede só o próprio acesso — sem chave secreta.
-    var url = 'https://graph.instagram.com/refresh_access_token' +
-      '?grant_type=ig_refresh_token' +
-      '&access_token=' + encodeURIComponent(segredo('IG_TOKEN'));
-    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-    var d = JSON.parse(resp.getContentText());
-    if (d.access_token) {
-      definirSegredo('IG_TOKEN', d.access_token);
-      definirSegredo('IG_TOKEN_RENOVADO_EM', new Date().toISOString());
-      registrar('INFO', '', 'TOKEN_RENOVADO', 'Token do Instagram renovado por mais ~60 dias.');
-    } else {
-      throw new Error(limparSegredos(resp.getContentText()));
-    }
+    chamarGraph(segredo('IG_USER_ID'), 'get', { fields: 'id,username' });
   } catch (e) {
-    registrar('ERRO', '', 'TOKEN_NAO_RENOVADO', e.message);
-    notificar('Atenção: o acesso ao Instagram precisa ser renovado',
-      'Não consegui renovar sozinho o acesso ao Instagram.\n\n' +
-      'Enquanto isso não for resolvido, as publicações automáticas vão falhar.\n' +
+    registrar('ERRO', '', 'ACESSO_IG_INVALIDO', e.message);
+    notificar('Atenção: o acesso ao Instagram parou de funcionar',
+      'A conferência diária do acesso ao Instagram falhou.\n\n' +
+      'Enquanto isso não for resolvido, as publicações automáticas vão falhar — as ' +
+      'artes continuam sendo produzidas normalmente.\n\n' +
       'Motivo técnico: ' + e.message + '\n\n' +
-      'Me avise que eu gero um acesso novo com você.', '');
+      'Isso costuma acontecer quando o aplicativo é removido em Instagram, ' +
+      'Configurações, Aplicativos e sites. Me avise que eu gero um acesso novo com você.', '');
   }
 }
