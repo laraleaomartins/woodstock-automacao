@@ -45,7 +45,8 @@ def tem_transparencia_real(caminho):
 MODELO_BOM = os.environ.get("REMBG_MODELO", "birefnet-general")
 MODELO_CONFERENCIA = os.environ.get("REMBG_MODELO_CONFERENCIA", "u2net")
 MODELO_RESGATE = os.environ.get("REMBG_MODELO_RESGATE", "isnet-general-use")
-CONCORDANCIA_MINIMA = 0.88
+CONCORDANCIA_MINIMA = 0.88   # abaixo disso, junta o que cada modelo achou
+CONCORDANCIA_RESGATE = 0.60  # abaixo disso, juntar cola fundo: fica só o melhor
 
 
 def _mascara_de_bytes(dados):
@@ -57,10 +58,31 @@ def _mascara(caminho):
     return np.array(Image.open(caminho).convert("RGBA").split()[3]) > 128
 
 
+def suavizar_borda(alfa, encolher=1, esfumar=1.4):
+    """
+    Esfuma a borda do recorte.
+
+    Recorte feito por máscara sai com borda em degrau, e ainda carrega uma
+    carreirinha de pixels do fundo antigo — que sobre o preto da arte aparece como
+    contorno claro. Encolher um fio e desfocar a borda tira as duas coisas: o
+    contorno some e o encaixe na arte fica macio em vez de recortado a tesoura.
+    """
+    from PIL import ImageFilter
+    from scipy import ndimage
+
+    solido = np.array(alfa) > 128
+    if encolher > 0:
+        solido = ndimage.binary_erosion(solido, iterations=int(encolher))
+    suave = Image.fromarray((solido * 255).astype("uint8"), "L")
+    if esfumar > 0:
+        suave = suave.filter(ImageFilter.GaussianBlur(float(esfumar)))
+    return suave
+
+
 def _aplicar_mascara(entrada, mascara, saida):
     im = Image.open(entrada).convert("RGBA")
     alfa = Image.fromarray((mascara * 255).astype("uint8"), "L").resize(im.size)
-    im.putalpha(alfa)
+    im.putalpha(suavizar_borda(alfa))
     im.save(saida)
 
 
@@ -96,6 +118,11 @@ def recortar_fundo(entrada, saida):
     if not tem_transparencia_real(saida):
         raise RuntimeError("o recorte saiu sem transparência — foto provavelmente ruim")
 
+    # Mesmo o recorte bom sai com uma carreirinha do fundo antigo na borda.
+    pronta = Image.open(saida).convert("RGBA")
+    pronta.putalpha(suavizar_borda(pronta.split()[3]))
+    pronta.save(saida)
+
     principal = _mascara(saida)
     if principal.sum() < principal.size * 0.04:
         raise RuntimeError("sobrou quase nada da foto depois do recorte (%.1f%% da imagem)"
@@ -108,7 +135,16 @@ def recortar_fundo(entrada, saida):
         uniao = (principal | outra).sum()
         concordancia = (principal & outra).sum() / uniao if uniao else 1.0
 
-        if concordancia < CONCORDANCIA_MINIMA:
+        if concordancia < CONCORDANCIA_RESGATE:
+            # Discordância grande demais: os recortadores não estão achando a mesma
+            # coisa, e juntar o que cada um achou cola fundo na arte — foi o que
+            # deixou um bloco cinza em volta do guitarrista do Toca Rock. Fica só o
+            # melhor modelo, e o aviso sobe.
+            aviso = ("os recortadores discordaram muito nesta foto (%.0f%% da área). "
+                     "Usei só o melhor deles. Confira a arte: se faltar alguém ou algum "
+                     "pedaço, envie a foto já recortada em PNG com fundo transparente."
+                     % ((1 - concordancia) * 100))
+        elif concordancia < CONCORDANCIA_MINIMA:
             # Os recortadores erram de formas opostas: um perde um integrante, o outro
             # perde a mesa ou o instrumento. Juntando o que cada um achou, recupera-se
             # boa parte do que seria jogado fora. Medido na foto problemática: sozinho o
@@ -146,6 +182,27 @@ def proporcao(caminho):
     return (cx[2] - cx[0]) / max(cx[3] - cx[1], 1)
 
 
+def conferir_logo(origem, recortada, avisos):
+    """
+    Trava de qualidade da logo. Reprova recorte que comeu parte do desenho.
+
+    O sintoma é vazado no meio da silhueta: foi assim que as letras brancas do
+    Toca Rock sumiram, porque o fundo também era quase branco. Medido: o recorte
+    certo deixa 0% de buraco; o que apagou as letras deixou 39%.
+    """
+    m = medir_recorte(recortada)
+    if m["visivel"] < 0.02:
+        raise RuntimeError("o recorte apagou a logo inteira")
+    if m["buracos"] > 0.15:
+        raise RuntimeError(
+            "o recorte da logo deixou %.0f%% do desenho vazado — provavelmente apagou "
+            "parte dela junto com o fundo. Envie a logo em PNG com fundo transparente."
+            % (m["buracos"] * 100))
+    if m["buracos"] > 0.05:
+        avisos.append("a logo ficou com %.0f%% de vazado no meio; confira a arte"
+                      % (m["buracos"] * 100))
+
+
 def altura_da_logo(caminho):
     """
     Escolhe a altura com que a logo entra em cada peça.
@@ -171,18 +228,66 @@ def altura_da_logo(caminho):
     }
 
 
-def modo_do_fundo_da_logo(caminho):
-    """Olha os 4 cantos: canto claro = fundo branco, canto escuro = fundo preto."""
-    im = Image.open(caminho).convert("RGB")
+def medir_recorte(caminho):
+    """
+    Mede um recorte: quanto sobrou e quanto virou buraco dentro do desenho.
+
+    "Buraco" é o sinal que denuncia recorte que comeu conteúdo: quando o fundo e
+    parte do desenho têm a mesma cor, o que some vira vazado no meio da silhueta.
+    Pela cor isso é invisível — branco sobre branco é branco. Pela forma, não.
+    """
+    from scipy import ndimage
+
+    visivel = np.array(Image.open(caminho).convert("RGBA").split()[3]) > 128
+    if not visivel.any():
+        return {"visivel": 0.0, "buracos": 1.0}
+    cheio = ndimage.binary_fill_holes(visivel)
+    return {
+        "visivel": float(visivel.mean()),
+        "buracos": float((cheio.sum() - visivel.sum()) / max(cheio.sum(), 1)),
+    }
+
+
+def recortar_logo(origem, destino, tratar_logo_py):
+    """
+    Tira o fundo da logo escolhendo o modo por medição, não por palpite.
+
+    Testa os três modos do kit e fica com o melhor. "Bordas" vem primeiro porque
+    remove só o fundo que encosta na margem: ele é o único que preserva branco
+    DENTRO do desenho. Olhar a cor dos cantos e decidir "fundo branco" apagava as
+    letras brancas junto com o fundo — foi o que aconteceu com a logo do Toca Rock,
+    que ficou só com o símbolo vermelho e as letras vazadas.
+    """
+    im = Image.open(origem).convert("RGB")
     w, h = im.size
     cantos = [im.getpixel(p) for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
-    medias = [sum(c) / 3 for c in cantos]
-    media = sum(medias) / 4
-    if media > 190:
-        return "branco"
-    if media < 65:
-        return "preto"
-    return "bordas"
+    claro = sum(sum(c) / 3 for c in cantos) / 4 > 128
+
+    ordem = ["bordas", "branco" if claro else "preto", "preto" if claro else "branco"]
+    tentativas = []
+    for modo in ordem:
+        saida = destino + "." + modo + ".png"
+        try:
+            executar([sys.executable, tratar_logo_py, origem, saida, "--fundo", modo])
+            tentativas.append((modo, saida, medir_recorte(saida)))
+        except Exception:
+            continue
+    if not tentativas:
+        raise RuntimeError("não consegui tirar o fundo da logo")
+
+    # Sobrou quase tudo = não removeu o fundo. Sobrou quase nada = comeu o desenho.
+    bons = [t for t in tentativas if 0.05 <= t[2]["visivel"] <= 0.90]
+    candidatos = bons or tentativas
+    # Entre os plausíveis, o que deixou menos buraco no meio do desenho.
+    escolhido = min(candidatos, key=lambda t: (round(t[2]["buracos"], 2), -t[2]["visivel"]))
+
+    Image.open(escolhido[1]).save(destino)
+    for _m, caminho, _v in tentativas:
+        if os.path.exists(caminho):
+            os.remove(caminho)
+    medidas = {m: {"visivel": round(v["visivel"], 3), "buracos": round(v["buracos"], 3)}
+               for m, _c, v in tentativas}
+    return escolhido[0], medidas
 
 
 def preparar(pasta_entrada, pasta_gerador, ident):
@@ -258,8 +363,10 @@ def preparar(pasta_entrada, pasta_gerador, ident):
             if tem_transparencia_real(logo):
                 Image.open(logo).convert("RGBA").save(destino_logo)
             else:
-                executar([sys.executable, os.path.join(pasta_gerador, "tratar_logo.py"),
-                          logo, destino_logo, "--fundo", modo_do_fundo_da_logo(logo)])
+                modo, medidas = recortar_logo(
+                    logo, destino_logo, os.path.join(pasta_gerador, "tratar_logo.py"))
+                avisos.append("logo recortada no modo '%s' (medidas: %s)" % (modo, medidas))
+            conferir_logo(logo, destino_logo, avisos)
             saida["bandLogo"] = "bands/" + os.path.basename(destino_logo)
             saida["logoH"] = altura_da_logo(destino_logo)
         except Exception as e:
