@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root{--preto:#0a0a0a;--vermelho:#d6121c;--cinza:#1b1b1b;--borda:#2e2e2e;--texto:#f2f2f2;--fraco:#9a9a9a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--preto);color:var(--texto);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:16px;padding-bottom:60px}
+  h1{font-size:20px;letter-spacing:1px}
+  h1 span{color:var(--vermelho)}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .aviso{background:#3a2a00;border:1px solid #7a5c00;color:#ffd96b;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px}
+  nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+  nav button{background:var(--cinza);color:var(--fraco);border:1px solid var(--borda);padding:8px 14px;border-radius:999px;cursor:pointer;font-size:14px}
+  nav button.on{background:var(--vermelho);color:#fff;border-color:var(--vermelho)}
+  .cartao{background:var(--cinza);border:1px solid var(--borda);border-radius:10px;padding:14px;margin-bottom:12px}
+  .linha{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+  .banda{font-size:17px;font-weight:700}
+  .meta{color:var(--fraco);font-size:13px}
+  .etq{display:inline-block;font-size:11px;letter-spacing:.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--borda);background:#000}
+  .e-AGUARDANDO_APROVACAO{background:#4a3a00;color:#ffd96b;border-color:#7a5c00}
+  .e-AGENDADA,.e-PUBLICADO,.e-APROVADA{background:#0d3a1a;color:#6ee89a;border-color:#1a6b33}
+  .e-ERRO_ARTES,.e-FALHA,.e-REPROVADA{background:#430f12;color:#ff8d95;border-color:#7a1a20}
+  .e-CANCELADA,.e-CANCELADO,.e-PAUSADA,.e-PAUSADO{background:#2a2a2a;color:#bbb}
+  .e-AGUARDANDO_ARTES,.e-GERANDO_ARTES,.e-AGENDADO{background:#0f2a43;color:#8fc6ff;border-color:#1b4e7a}
+  .artes{display:flex;gap:8px;overflow-x:auto;margin-top:12px;padding-bottom:4px}
+  .artes figure{flex:0 0 auto;width:104px}
+  .artes img{width:104px;border-radius:6px;border:1px solid var(--borda);display:block;background:#000}
+  .artes figcaption{font-size:11px;color:var(--fraco);text-align:center;margin-top:4px}
+  .acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  button.b{border:1px solid var(--borda);background:#000;color:var(--texto);padding:8px 12px;border-radius:7px;cursor:pointer;font-size:13px}
+  button.b:hover{border-color:var(--vermelho)}
+  button.b.forte{background:var(--vermelho);border-color:var(--vermelho);color:#fff;font-weight:600}
+  button.b:disabled{opacity:.4;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--borda);vertical-align:top}
+  th{color:var(--fraco);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  input,select,textarea{background:#000;color:var(--texto);border:1px solid var(--borda);border-radius:6px;padding:7px 9px;font:inherit;font-size:13px}
+  textarea{width:100%;min-height:150px;font-family:ui-monospace,monospace;font-size:12px}
+  .cfg{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 0;border-bottom:1px solid var(--borda)}
+  .cfg .ajuda{color:var(--fraco);font-size:12.5px;margin-top:3px}
+  .cfg code{color:#8fc6ff;font-size:12px}
+  .vazio{color:var(--fraco);padding:30px;text-align:center}
+  #recado{position:fixed;left:16px;right:16px;bottom:16px;background:var(--vermelho);color:#fff;padding:12px 14px;border-radius:8px;display:none;z-index:9;font-size:14px}
+  dialog{background:var(--cinza);color:var(--texto);border:1px solid var(--borda);border-radius:10px;max-width:640px;width:92%;padding:18px}
+  dialog::backdrop{background:rgba(0,0,0,.7)}
+  @media(max-width:520px){.cfg{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>WOOD<span>STOCK</span> · painel</h1>
+  <div class="meta" id="estado">carregando…</div>
+</header>
+
+<div class="aviso" id="trava" style="display:none"></div>
+
+<nav>
+  <button class="on" data-aba="programacoes">Programações</button>
+  <button data-aba="calendario">Calendário</button>
+  <button data-aba="config">Configurações</button>
+  <button data-aba="historico">Histórico</button>
+</nav>
+
+<div id="programacoes"></div>
+<div id="calendario" hidden></div>
+<div id="config" hidden></div>
+<div id="historico" hidden></div>
+
+<div id="recado"></div>
+
+<dialog id="janela"><div id="janelaCorpo"></div>
+  <div class="acoes"><button class="b" onclick="document.getElementById('janela').close()">Fechar</button></div>
+</dialog>
+
+<script>
+var CHAVE = <?= JSON.stringify(chave) ?>;
+var dados = null;
+
+function recado(texto, ms){
+  var el = document.getElementById('recado');
+  el.textContent = texto; el.style.display = 'block';
+  clearTimeout(el._t); el._t = setTimeout(function(){ el.style.display='none'; }, ms || 4000);
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+function chamar(fn, args, aoTerminar){
+  recado('Processando…', 60000);
+  google.script.run
+    .withSuccessHandler(function(r){ recado('Pronto.'); if(aoTerminar) aoTerminar(r); else carregar(); })
+    .withFailureHandler(function(e){ recado('Não deu certo: ' + e.message, 9000); })
+    [fn].apply(null, [CHAVE].concat(args || []));
+}
+
+function carregar(){
+  google.script.run.withSuccessHandler(function(d){ dados = d; desenhar(); })
+    .withFailureHandler(function(e){ recado('Erro ao carregar: ' + e.message, 9000); })
+    .painelCarregar(CHAVE);
+}
+
+function desenhar(){
+  var e = dados.estado;
+  document.getElementById('estado').textContent =
+    dados.programacoes.length + ' programações · ' +
+    (e.postsPorSituacao.AGENDADO || 0) + ' na fila · ' +
+    (e.postsPorSituacao.PUBLICADO || 0) + ' publicadas · modo ' + e.modo;
+
+  var trava = document.getElementById('trava');
+  if (!e.publicandoDeVerdade){
+    trava.style.display = 'block';
+    trava.innerHTML = '<b>Modo de teste ligado.</b> O sistema faz tudo — cria as artes, escreve as ' +
+      'legendas e cumpre o calendário — mas <b>não envia nada para o Instagram</b>; as publicações ' +
+      'ficam marcadas como SIMULADO. Para publicar de verdade, mude <code>PUBLICAR_DE_VERDADE</code> ' +
+      'para SIM em Configurações.';
+  } else if (!e.instagramConectado){
+    trava.style.display = 'block';
+    trava.innerHTML = '<b>Instagram não conectado.</b> As publicações vão falhar até as credenciais serem configuradas.';
+  } else { trava.style.display = 'none'; }
+
+  desenharProgramacoes(); desenharCalendario(); desenharConfig(); desenharHistorico();
+}
+
+function desenharProgramacoes(){
+  var alvo = document.getElementById('programacoes');
+  if (!dados.programacoes.length){
+    alvo.innerHTML = '<div class="vazio">Nenhuma banda inscrita ainda.<br>Assim que alguém ' +
+      'preencher o formulário, aparece aqui.</div>';
+    return;
+  }
+  alvo.innerHTML = dados.programacoes.map(function(p){
+    var pecas = [];
+    ['A','B','C'].forEach(function(o){
+      if (p.feed[o]) pecas.push({u:p.feed[o], t:'feed ' + o});
+      if (p.story[o]) pecas.push({u:p.story[o], t:'story ' + o});
+    });
+    var galeria = pecas.length ? '<div class="artes">' + pecas.map(function(x){
+      return '<figure><a href="'+esc(x.u)+'" target="_blank"><img src="'+esc(x.u)+'" loading="lazy" alt="'+esc(x.t)+'"></a>' +
+             '<figcaption>'+esc(x.t)+'</figcaption></figure>'; }).join('') + '</div>' : '';
+
+    var acoes = [];
+    if (p.situacao === 'AGUARDANDO_APROVACAO'){
+      acoes.push(bt('forte','Aprovar e agendar','painelAprovar',p.id));
+      acoes.push(bt('','Reprovar','reprovar',p.id));
+    }
+    if (['AGENDADA','APROVADA'].indexOf(p.situacao)>=0) acoes.push(bt('','Pausar','painelPausar',p.id));
+    if (p.situacao === 'PAUSADA') acoes.push(bt('','Retomar','painelRetomar',p.id));
+    if (['ERRO_ARTES','REPROVADA'].indexOf(p.situacao)>=0) acoes.push(bt('','Produzir de novo','painelRefazer',p.id));
+    if (Object.keys(p.feed).length || Object.keys(p.story).length) {
+      acoes.push(bt('','Recalcular horários','painelRecalcular',p.id));
+      acoes.push('<button class="b" onclick="verLegendas(\''+p.id+'\')">Ver legendas</button>');
+    }
+    acoes.push('<button class="b" onclick="mudarShow(\''+p.id+'\')">Mudar data/hora</button>');
+    acoes.push('<select onchange="chamar(\'painelDefinirModo\',[\''+p.id+'\',this.value])">' +
+      opt('', '(modo global)', p.modo) + opt('AUTOMATICO','automático',p.modo) +
+      opt('APROVACAO','com aprovação',p.modo) + '</select>');
+    if (['CANCELADA','CONCLUIDA'].indexOf(p.situacao)<0) acoes.push(bt('','Cancelar tudo','cancelar',p.id));
+    if (p.pastaUrl) acoes.push('<a class="b" style="text-decoration:none;display:inline-block" href="'+esc(p.pastaUrl)+'" target="_blank">Arquivos no Drive</a>');
+
+    return '<div class="cartao">' +
+      '<div class="linha"><div><div class="banda">'+esc(p.banda)+'</div>' +
+      '<div class="meta">'+esc(p.dataShow)+' · '+esc(p.diaSemana)+' · '+esc(p.horaShow)+' · '+esc(p.instagram)+
+      ' · '+p.recebidos+' arquivo(s) recebido(s)</div></div>' +
+      '<span class="etq e-'+esc(p.situacao)+'">'+esc(p.situacao.replace(/_/g,' '))+'</span></div>' +
+      (p.erro ? '<div class="meta" style="color:#ff8d95;margin-top:8px">'+esc(p.erro)+'</div>' : '') +
+      (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +
+      galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
+  }).join('');
+}
+
+function bt(classe, rotulo, fn, id){
+  return '<button class="b '+classe+'" onclick="acao(\''+fn+'\',\''+id+'\')">'+rotulo+'</button>';
+}
+function opt(v,r,atual){ return '<option value="'+v+'"'+(atual===v?' selected':'')+'>'+r+'</option>'; }
+
+function acao(fn, id){
+  if (fn === 'reprovar'){
+    var m = prompt('O que está errado nas artes? (vai ficar registrado)');
+    if (m === null) return;
+    return chamar('painelReprovar', [id, m]);
+  }
+  if (fn === 'cancelar'){
+    if (!confirm('Cancelar esta programação e tirar todas as publicações da fila?')) return;
+    return chamar('painelCancelar', [id]);
+  }
+  chamar(fn, [id]);
+}
+
+function mudarShow(id){
+  var p = dados.programacoes.filter(function(x){return x.id===id;})[0];
+  var d = prompt('Nova data do show (AAAA-MM-DD). Deixe como está para não mudar:', p.dataShowISO);
+  if (d === null) return;
+  var h = prompt('Novo horário do show (HH:MM):', p.horaShow);
+  if (h === null) return;
+  chamar('painelAlterarShow', [id, d, h]);
+}
+
+function verLegendas(id){
+  var p = dados.programacoes.filter(function(x){return x.id===id;})[0];
+  var html = '<h3 style="margin-bottom:10px">Legendas — '+esc(p.banda)+'</h3>';
+  ['A','B','C'].forEach(function(o){
+    if (!p.legendas[o]) return;
+    html += '<p class="meta" style="margin-top:12px">Opção '+o+'</p>' +
+            '<textarea readonly onclick="this.select()">'+esc(p.legendas[o])+'</textarea>';
+  });
+  document.getElementById('janelaCorpo').innerHTML = html;
+  document.getElementById('janela').showModal();
+}
+
+function desenharCalendario(){
+  var alvo = document.getElementById('calendario');
+  if (!dados.agendamentos.length){
+    alvo.innerHTML = '<div class="vazio">Nada agendado ainda.</div>'; return;
+  }
+  alvo.innerHTML = '<div class="cartao"><table><thead><tr><th>Quando</th><th>Banda</th>' +
+    '<th>Peça</th><th>Situação</th><th></th></tr></thead><tbody>' +
+    dados.agendamentos.map(function(a){
+      return '<tr><td>'+esc(a.quando)+'</td><td>'+esc(a.banda)+'</td>' +
+        '<td>'+(a.canal==='FEED'?'feed':'story')+' '+esc(a.opcao)+
+        (a.url?' · <a href="'+esc(a.url)+'" target="_blank" style="color:#8fc6ff">ver</a>':'')+'</td>' +
+        '<td><span class="etq e-'+esc(a.situacao)+'">'+esc(a.situacao)+'</span>' +
+        (a.erro?'<div class="meta" style="color:#ff8d95">'+esc(a.erro)+'</div>':'')+'</td>' +
+        '<td>'+(a.situacao==='AGENDADO'?'<button class="b" onclick="chamar(\'painelCancelarPost\',[\''+esc(a.postId)+'\'])">Tirar da fila</button>':'')+'</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+function desenharConfig(){
+  document.getElementById('config').innerHTML = '<div class="cartao">' +
+    dados.config.map(function(c){
+      var campo;
+      if (['SIM','NAO'].indexOf(c.valor.toUpperCase())>=0){
+        campo = '<select id="c_'+c.chave+'">'+opt('SIM','SIM',c.valor)+opt('NAO','NAO',c.valor)+'</select>';
+      } else if (c.chave === 'MODO_OPERACAO'){
+        campo = '<select id="c_'+c.chave+'">'+opt('AUTOMATICO','AUTOMATICO',c.valor)+opt('APROVACAO','APROVACAO',c.valor)+'</select>';
+      } else {
+        campo = '<input id="c_'+c.chave+'" value="'+esc(c.valor)+'" size="12">';
+      }
+      return '<div class="cfg"><div><code>'+esc(c.chave)+'</code>' +
+        '<div class="ajuda">'+esc(c.ajuda)+'</div></div>' +
+        '<div style="display:flex;gap:6px">'+campo+
+        '<button class="b" onclick="salvarCfg(\''+c.chave+'\')">Salvar</button></div></div>';
+    }).join('') + '</div>';
+}
+
+function salvarCfg(chave){
+  chamar('painelDefinirConfig', [chave, document.getElementById('c_'+chave).value]);
+}
+
+function desenharHistorico(){
+  document.getElementById('historico').innerHTML = '<div class="cartao"><table><thead><tr>' +
+    '<th>Quando</th><th>Tipo</th><th>Programação</th><th>O que aconteceu</th></tr></thead><tbody>' +
+    dados.logs.map(function(l){
+      var cor = l.nivel==='ERRO' ? '#ff8d95' : (l.nivel==='AVISO' ? '#ffd96b' : 'inherit');
+      return '<tr><td>'+esc(l.quando)+'</td><td style="color:'+cor+'">'+esc(l.nivel)+'</td>' +
+        '<td>'+esc(l.prog)+'</td><td>'+esc(l.evento)+
+        (l.detalhe?'<div class="meta">'+esc(l.detalhe)+'</div>':'')+'</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+document.querySelectorAll('nav button').forEach(function(b){
+  b.onclick = function(){
+    document.querySelectorAll('nav button').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on');
+    ['programacoes','calendario','config','historico'].forEach(function(id){
+      document.getElementById(id).hidden = (id !== b.dataset.aba);
+    });
+  };
+});
+
+carregar();
+setInterval(carregar, 120000);
+</script>
+</body>
+</html>

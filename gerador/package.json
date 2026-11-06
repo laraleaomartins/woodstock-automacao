@@ -1,0 +1,3 @@
+{ "name": "agenda-woodstock", "version": "1.0.0", "private": true,
+  "scripts": { "render": "node render3.js" },
+  "dependencies": { "playwright": "^1.40.0" } }

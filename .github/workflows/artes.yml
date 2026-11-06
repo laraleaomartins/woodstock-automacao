@@ -1,0 +1,62 @@
+name: Produzir artes
+
+# Roda sozinho a cada 15 minutos, nos servidores do GitHub. Não depende de nenhum
+# computador ligado. O Apps Script também pode chamar na hora, pelo evento
+# "produzir-artes", quando uma banda acaba de se inscrever.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  repository_dispatch:
+    types: [produzir-artes]
+  workflow_dispatch:
+
+concurrency:
+  group: artes
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  produzir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # O modelo de recorte de fundo tem ~180 MB: guardar em cache evita baixar
+      # de novo a cada execução.
+      - name: Cache do modelo de recorte
+        uses: actions/cache@v4
+        with:
+          path: ~/.u2net
+          key: u2net-isnet-general-use
+
+      - name: Cache do navegador do gerador
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('gerador/package.json') }}
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet "rembg[cpu]" pillow numpy
+          npm --prefix gerador install --no-audit --no-fund
+          npm --prefix gerador exec -- playwright install --with-deps chromium
+
+      - name: Produzir as artes pendentes
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          APPS_SCRIPT_TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+          PAGES_BASE_URL: ${{ vars.PAGES_BASE_URL }}
+          PYTHON_BIN: python
+        run: node worker/produzir.mjs

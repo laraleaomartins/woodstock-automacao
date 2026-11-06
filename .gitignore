@@ -1,0 +1,25 @@
+node_modules/
+.trabalho/
+tmp/
+painel_test.html
+
+# identificador do projeto Apps Script da conta
+.clasp.json
+
+# FORA DO REPOSITORIO PUBLICO ------------------------------------------------
+# O repositorio precisa ser publico (minutos ilimitados e a Meta so baixa imagem
+# de endereco publico). Entao nada que seja material das bandas entra aqui.
+
+# o kit original e sua copia de seguranca: ficam no Drive, em
+# CONFIGURACOES/MATERIAIS-ORIGINAIS
+kit-original/
+
+# fotos de banda do exemplo do kit
+gerador/bands/*
+!gerador/bands/.gitkeep
+
+# evidencias dos testes: mostram fotos de banda
+docs/evidencias/
+
+# fotos cruas baixadas durante a producao
+docs/artes/**/RECEBIDOS/

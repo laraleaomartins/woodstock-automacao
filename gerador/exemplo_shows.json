@@ -1,0 +1,7 @@
+[
+ {"slug":"07NOV_alex-kundera-trio","band":"ALEX KUNDERA TRIO","day":"07","weekday":"SÁBADO",
+  "photo":"bands/kundera_trio_bw.png","photoB":"bands/kundera_solo_bw.png"},
+ {"slug":"06NOV_pelada-de-quinta","band":"PELADA DE QUINTA","day":"06","weekday":"SEXTA-FEIRA",
+  "photo":"bands/pelada_bw.png","bandLogo":"bands/pelada_logo.png",
+  "logoH":{"A_feed":300,"A_story":360,"B_feed":330,"B_story":400,"C_feed":300,"C_story":360}}
+]
