@@ -89,7 +89,7 @@ def _aplicar_mascara(entrada, mascara, saida):
     im.save(saida)
 
 
-def juntar_integrantes(recortadas, destino, folga=0.04):
+def juntar_integrantes(recortadas, destino, folga=0.04, espaco_embaixo=0.42):
     """
     Monta uma foto de banda a partir de fotos separadas de cada integrante.
 
@@ -119,10 +119,15 @@ def juntar_integrantes(recortadas, destino, folga=0.04):
 
     espaco = int(altura * folga)
     largura = sum(p.width for p in ajustadas) + espaco * (len(ajustadas) - 1)
-    tela = Image.new("RGBA", (largura, altura), (0, 0, 0, 0))
+
+    # Espaço transparente embaixo. O layout não muda em nada: é a foto que sobe
+    # dentro do espaço dela, deixando a faixa de baixo livre para a logo. Sem isso a
+    # logo encosta em quem está no meio.
+    sobra = int(altura * espaco_embaixo)
+    tela = Image.new("RGBA", (largura, altura + sobra), (0, 0, 0, 0))
     x = 0
     for p in ajustadas:
-        tela.alpha_composite(p, (x, 0))      # pés alinhados: todos terminam embaixo
+        tela.alpha_composite(p, (x, 0))      # pés alinhados: todos terminam na mesma linha
         x += p.width + espaco
     tela.save(destino)
     return destino, len(ajustadas)
@@ -382,6 +387,8 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
         raise RuntimeError("nenhuma foto chegou nesta programação")
 
     avisos = []
+    houve_montagem = False
+    duvidosas = []
     recortadas = []
     for i, foto in enumerate(fotos):
         destino = os.path.join(trabalho, "cortada%d.png" % (i + 1))
@@ -397,6 +404,8 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
                 _, aviso = recortar_fundo(foto, destino, obrigatorio=juntar)
                 if aviso:
                     avisos.append("foto%d: %s" % (i + 1, aviso))
+                    if juntar and "discordaram muito" in aviso:
+                        duvidosas.append(i + 1)
             recortadas.append(destino)
         except Exception as e:  # uma foto ruim não derruba a programação inteira
             avisos.append("foto%d descartada: %s" % (i + 1, e))
@@ -405,12 +414,23 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
         raise RuntimeError("nenhuma das fotos pôde ser recortada; " + " | ".join(avisos))
 
     if juntar:
+        # Montagem com recorte duvidoso sai feia sempre: a pessoa vem com um halo do
+        # fundo colado, fica menor que as outras e desalinhada. Melhor recusar e
+        # pedir a foto certa do que publicar algo ruim.
+        if duvidosas:
+            raise RuntimeError(
+                "não dá para juntar os integrantes: a foto %s tem a pessoa se "
+                "misturando com a luz do fundo, e o recorte sai com um halo colado. "
+                "Mande essa foto já recortada em PNG com fundo transparente, ou troque "
+                "por uma com o fundo mais separado da pessoa."
+                % ", ".join("nº %d" % n for n in duvidosas))
         if len(recortadas) < 2:
             avisos.append("veio só uma foto; não havia o que juntar")
         else:
             montada = os.path.join(trabalho, "banda_montada.png")
             try:
                 _, quantos = juntar_integrantes(recortadas, montada)
+                houve_montagem = True
                 avisos.append("montei %d integrantes lado a lado numa foto só da banda"
                               % quantos)
                 recortadas = [montada] + recortadas
