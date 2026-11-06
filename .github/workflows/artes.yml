@@ -5,7 +5,9 @@ name: Produzir artes
 # "produzir-artes", quando uma banda acaba de se inscrever.
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # Horários deslocados de propósito: o GitHub atrasa ou engole execuções
+    # agendadas em minutos redondos, quando a fila dele está cheia.
+    - cron: '3,13,23,33,43,53 * * * *'
   repository_dispatch:
     types: [produzir-artes]
   workflow_dispatch:
