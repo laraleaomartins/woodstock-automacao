@@ -149,7 +149,13 @@ caminho, quantos = pi.juntar_integrantes(fontes, montada)
 junta = Image.open(caminho).convert("RGBA")
 alfa = __import__("numpy").array(junta.split()[3])
 conferir(quantos == 2, "juntou as 2 fotos")
-conferir(junta.width > junta.height, "a montagem ficou deitada, boa para as opções A e C")
+linha_de_baixo = alfa[-1, :].max()
+conferir(linha_de_baixo <= 128,
+         "a montagem tem faixa livre embaixo, para a logo não tapar ninguém")
+ultima_pessoa = int(__import__("numpy").where(alfa.max(axis=1) > 128)[0].max())
+conferir(ultima_pessoa < junta.height * 0.85,
+         "as pessoas ocupam só a parte de cima (terminam em %d%% da altura)"
+         % int(ultima_pessoa / junta.height * 100))
 vazio = float((alfa <= 128).mean())
 conferir(vazio > 0.10,
          "a montagem tem fundo transparente (%.0f%% vazado), não sólido" % (vazio * 100))
