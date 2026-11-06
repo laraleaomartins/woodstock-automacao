@@ -287,11 +287,17 @@ function mostrarTokenDaApi() {
 }
 
 /** Guarda as credenciais do Instagram. Chame uma vez, pelo editor. */
-function configurarInstagram(igUserId, tokenLongo, appId, appSecret) {
-  definirSegredo('IG_USER_ID', String(igUserId || '').trim());
-  definirSegredo('IG_TOKEN', String(tokenLongo || '').trim());
-  if (appId) definirSegredo('FB_APP_ID', String(appId).trim());
-  if (appSecret) definirSegredo('FB_APP_SECRET', String(appSecret).trim());
-  registrar('INFO', '', 'CREDENCIAIS_IG', 'Credenciais do Instagram guardadas.');
-  return 'Credenciais guardadas. Rode testarInstagram() para conferir.';
+/**
+ * Guarda o acesso ao Instagram. Só precisa do token de longa duração: o identificador
+ * da conta o próprio sistema descobre, e a renovação não usa chave secreta.
+ */
+function configurarInstagram(tokenLongo) {
+  var t = String(tokenLongo || '').trim();
+  if (t.length < 30) throw new Error('Token vazio ou curto demais.');
+  definirSegredo('IG_TOKEN', t);
+  var conta = descobrirContaInstagram();
+  definirSegredo('IG_TOKEN_RENOVADO_EM', new Date().toISOString());
+  registrar('INFO', '', 'CREDENCIAIS_IG', 'Acesso ao Instagram guardado (@' + conta.username + ').');
+  return 'Conectado a @' + conta.username + '. A trava PUBLICAR_DE_VERDADE segue em ' +
+    cfg('PUBLICAR_DE_VERDADE') + '.';
 }

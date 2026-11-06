@@ -6,9 +6,14 @@
  * por isso as artes ficam hospedadas no GitHub Pages.
  *
  * A API não agenda: quem agenda é este sistema, que a cada 15 minutos publica o que venceu.
+ *
+ * Caminho usado: "login unificado" (graph.instagram.com), que conecta direto na conta
+ * profissional do Instagram. O caminho antigo (graph.facebook.com) exigiria amarrar o
+ * perfil a uma Página do Facebook — o bar não tem e não quer. Aqui a renovação do acesso
+ * também é mais simples: não precisa da chave secreta do aplicativo.
  */
 
-var GRAPH = 'https://graph.facebook.com/v23.0/';
+var GRAPH = 'https://graph.instagram.com/v23.0/';
 
 function igConfigurado() {
   return !!(segredo('IG_USER_ID') && segredo('IG_TOKEN'));
@@ -120,13 +125,26 @@ function cotaRestante() {
 
 function testarInstagram() {
   if (!igConfigurado()) return 'Instagram ainda não conectado. Rode configurarInstagram(...).';
-  var eu = chamarGraph(segredo('IG_USER_ID'), 'get',
-    { fields: 'id,username,name,followers_count' });
+  var eu = chamarGraph('me', 'get', { fields: 'user_id,username,account_type' });
   var cota = cotaRestante();
-  var texto = 'Conectado como @' + eu.username + ' (id ' + eu.id + ')' +
+  var texto = 'Conectado como @' + eu.username + ' (conta ' + (eu.account_type || '?') +
+    ', id ' + (eu.user_id || eu.id) + ')' +
     (cota ? ' | cota: ' + cota.usado + '/' + cota.limite + ' usadas nas últimas 24h' : '');
   console.log(texto);
   return texto;
+}
+
+/**
+ * Descobre sozinho o identificador da conta a partir do acesso, para não depender de
+ * ninguém copiar número nenhum.
+ */
+function descobrirContaInstagram() {
+  var eu = chamarGraph('me', 'get', { fields: 'user_id,username' });
+  var id = String(eu.user_id || eu.id || '');
+  if (!id) throw new Error('O Instagram não devolveu o identificador da conta.');
+  definirSegredo('IG_USER_ID', id);
+  registrar('INFO', '', 'CONTA_IG', 'Conectado a @' + eu.username + ' (id ' + id + ')');
+  return { id: id, username: eu.username };
 }
 
 /**
@@ -134,12 +152,12 @@ function testarInstagram() {
  * ainda está válido, para o sistema não parar sozinho.
  */
 function rotinaRenovarToken() {
-  if (!igConfigurado() || !segredo('FB_APP_ID') || !segredo('FB_APP_SECRET')) return;
+  if (!igConfigurado()) return;
   try {
-    var url = GRAPH + 'oauth/access_token?grant_type=fb_exchange_token' +
-      '&client_id=' + encodeURIComponent(segredo('FB_APP_ID')) +
-      '&client_secret=' + encodeURIComponent(segredo('FB_APP_SECRET')) +
-      '&fb_exchange_token=' + encodeURIComponent(segredo('IG_TOKEN'));
+    // Neste caminho a renovação pede só o próprio acesso — sem chave secreta.
+    var url = 'https://graph.instagram.com/refresh_access_token' +
+      '?grant_type=ig_refresh_token' +
+      '&access_token=' + encodeURIComponent(segredo('IG_TOKEN'));
     var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
     var d = JSON.parse(resp.getContentText());
     if (d.access_token) {
