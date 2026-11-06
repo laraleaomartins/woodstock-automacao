@@ -32,13 +32,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      # O modelo de recorte de fundo tem ~180 MB: guardar em cache evita baixar
-      # de novo a cada execução.
-      - name: Cache do modelo de recorte
+      # Os modelos de recorte somam centenas de MB. Guardar em cache evita baixar
+      # tudo de novo a cada execução. O rembg guarda em uma pasta ou na outra,
+      # dependendo da versão, então as duas entram.
+      - name: Cache dos modelos de recorte
         uses: actions/cache@v4
         with:
-          path: ~/.u2net
-          key: u2net-isnet-general-use
+          path: |
+            ~/.u2net
+            ~/.rembg
+          key: rembg-birefnet-u2net-isnet-v1
 
       - name: Cache do navegador do gerador
         uses: actions/cache@v4
