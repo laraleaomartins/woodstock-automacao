@@ -71,6 +71,17 @@ function doPost(e) {
         return json({ ok: true, resultado: adiantarPost(corpo.post_id) });
       case 'publicar_agora':
         return json({ ok: true, resultado: publicarVencidos() });
+      case 'listar_programacoes':
+        return json({ ok: true, programacoes: linhas(ABA.PROGRAMACOES).map(function (p) {
+          return { id: p.ID, banda: p.Banda, recebido: String(p.RecebidoEm), data: String(p.DataShow),
+            hora: horaTexto(p.HoraShow), situacao: p.Situacao, modo: p.Modo,
+            erro: String(p.Erro || ''), avisos: String(p.Avisos || ''), origem: String(p.RespostaId || '') };
+        }) });
+      case 'listar_logs':
+        return json({ ok: true, logs: linhas(ABA.LOGS).slice(-Number(corpo.quantos || 25)).map(function (l) {
+          return { quando: String(l.Quando), nivel: l.Nivel, prog: l.Programacao,
+            evento: l.Evento, detalhe: String(l.Detalhe || '').slice(0, 300) };
+        }) });
       case 'listar_posts':
         return json({ ok: true, posts: linhas(ABA.AGENDAMENTOS).map(function (a) {
           return { id: a.PostId, canal: a.Canal, opcao: a.Opcao, quando: a.QuandoISO,

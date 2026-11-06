@@ -5,7 +5,7 @@ name: Produzir artes
 # "produzir-artes", quando uma banda acaba de se inscrever.
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'
   repository_dispatch:
     types: [produzir-artes]
   workflow_dispatch:
@@ -22,13 +22,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      # Pergunta primeiro se há banda esperando arte. Sem isso, cada ciclo instalaria
+      # o navegador e os modelos de recorte à toa — o que permite conferir a fila de
+      # 5 em 5 minutos em vez de 15, continuando de graça.
+      - name: Tem trabalho na fila?
+        id: fila
+        env:
+          APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+          APPS_SCRIPT_TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
+        run: |
+          resposta=$(curl -sL --max-time 60 \
+            "$APPS_SCRIPT_URL?acao=estado&chave=$APPS_SCRIPT_TOKEN" || echo '{}')
+          esperando=$(printf '%s' "$resposta" | grep -o '"AGUARDANDO_ARTES":[0-9]*' | grep -o '[0-9]*$' || true)
+          echo "esperando=${esperando:-0}"
+          if [ "${esperando:-0}" -gt 0 ]; then
+            echo "tem=sim" >> "$GITHUB_OUTPUT"
+          else
+            echo "tem=nao" >> "$GITHUB_OUTPUT"
+            echo "Nenhuma banda esperando arte; encerrando sem instalar nada."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.fila.outputs.tem == 'sim'
 
       - uses: actions/setup-node@v4
+        if: steps.fila.outputs.tem == 'sim'
         with:
           node-version: '20'
 
       - uses: actions/setup-python@v5
+        if: steps.fila.outputs.tem == 'sim'
         with:
           python-version: '3.11'
 
@@ -36,6 +59,7 @@ jobs:
       # tudo de novo a cada execução. O rembg guarda em uma pasta ou na outra,
       # dependendo da versão, então as duas entram.
       - name: Cache dos modelos de recorte
+        if: steps.fila.outputs.tem == 'sim'
         uses: actions/cache@v4
         with:
           path: |
@@ -44,12 +68,14 @@ jobs:
           key: rembg-birefnet-u2net-isnet-v1
 
       - name: Cache do navegador do gerador
+        if: steps.fila.outputs.tem == 'sim'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('gerador/package.json') }}
 
       - name: Instalar dependências
+        if: steps.fila.outputs.tem == 'sim'
         run: |
           python -m pip install --quiet --upgrade pip
           python -m pip install --quiet "rembg[cpu]" pillow numpy
@@ -57,6 +83,7 @@ jobs:
           npm --prefix gerador exec -- playwright install --with-deps chromium
 
       - name: Produzir as artes pendentes
+        if: steps.fila.outputs.tem == 'sim'
         env:
           APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
           APPS_SCRIPT_TOKEN: ${{ secrets.APPS_SCRIPT_TOKEN }}
