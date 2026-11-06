@@ -100,6 +100,47 @@ r4, g4 = preparar(pasta_com(("pelada_bw.png", "foto1.png"),
 conferir("bandLogo" in r4 and "logoH" in r4,
          "a logo entrou junto com a altura calculada")
 
+print("\n• Logo com conteúdo branco sobre fundo claro não perde as letras")
+# A armadilha que estragou a logo do Toca Rock: o fundo é quase branco E parte do
+# desenho é branca. Decidir o modo pela cor dos cantos apaga as letras junto.
+from PIL import ImageDraw  # noqa: E402
+
+fundo_claro = Image.new("RGB", (400, 400), (247, 247, 247))
+d = ImageDraw.Draw(fundo_claro)
+d.ellipse((40, 40, 360, 360), fill=(110, 10, 10))
+d.rectangle((110, 170, 290, 230), fill=(255, 255, 255))   # "letras" brancas
+d.ellipse((150, 100, 250, 160), fill=(255, 255, 255))
+armadilha = os.path.join(tempfile.mkdtemp(), "logo.png")
+fundo_claro.save(armadilha)
+
+destino = os.path.join(tempfile.mkdtemp(), "logo_ok.png")
+modo, medidas = pi.recortar_logo(armadilha, destino, os.path.join(RAIZ, "gerador", "tratar_logo.py"))
+conferir(pi.medir_recorte(destino)["buracos"] < 0.05,
+         "o modo escolhido (%s) não deixou o desenho vazado" % modo)
+brancos = __import__("numpy").array(Image.open(destino).convert("RGBA"))
+visivel = brancos[..., 3] > 128
+conferir(int((((brancos[..., :3] > 200).all(axis=2)) & visivel).sum()) > 2000,
+         "as partes brancas do desenho continuam lá")
+
+print("\n• A trava reprova o recorte que come o desenho")
+ruim = os.path.join(tempfile.mkdtemp(), "ruim.png")
+pi.executar([sys.executable, os.path.join(RAIZ, "gerador", "tratar_logo.py"),
+             armadilha, ruim, "--fundo", "branco"])
+try:
+    pi.conferir_logo(armadilha, ruim, [])
+    conferir(False, "deveria ter reprovado o recorte que apaga o branco")
+except Exception as e:
+    conferir("vazado" in str(e), "reprovou: %s" % str(e)[:60])
+
+print("\n• A borda do recorte sai esfumada, não em degrau")
+dura = Image.new("L", (200, 200), 0)
+ImageDraw.Draw(dura).ellipse((50, 50, 150, 150), fill=255)
+suave = pi.suavizar_borda(dura)
+vals = __import__("numpy").array(suave)
+meio_tom = ((vals > 20) & (vals < 235)).sum()
+conferir(meio_tom > 200, "a borda ganhou %d pixels de transição" % meio_tom)
+conferir(vals.max() > 240 and vals.min() == 0, "o miolo continua sólido e o fora, vazio")
+
 print("\n• Foto vazia é recusada em vez de virar arte quebrada")
 vazia = tempfile.mkdtemp()
 Image.new("RGBA", (400, 400), (0, 0, 0, 0)).save(os.path.join(vazia, "foto1.png"))

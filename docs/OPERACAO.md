@@ -145,3 +145,27 @@ data.
 mesmo identificador das antigas. Cancelar ou adiantar acertava a linha errada, e a mesma
 arte poderia ir ao ar duas vezes. Agora o identificador é único (vira `_r2`, `_r3`) e as
 buscas preferem a linha ativa.
+
+## O que o sistema confere sozinho antes de entregar uma arte
+
+Você não precisa revisar peça por peça. Estas conferências rodam a cada produção e,
+quando reprovam, a programação **não vira arte nem publicação** — você recebe e-mail
+dizendo o motivo.
+
+| Conferência | Reprova quando | Por que existe |
+|---|---|---|
+| Recorte da logo | mais de 15% do desenho vira vazado | logo com letra branca sobre fundo claro perdia as letras |
+| Logo apagada | sobra menos de 2% do desenho | modo de recorte errado zerava a imagem |
+| Foto vazia | menos de 4% da imagem aparece | arquivo em branco virava arte em branco |
+| Foto sem recorte | o recorte sai sem transparência | foto que o recortador não entendeu |
+| Nenhuma foto aproveitável | todas as fotos falharam | não produz peça quebrada |
+
+E estas **avisam** sem reprovar, aparecendo em amarelo no cartão do painel:
+
+- os dois recortadores discordaram entre 12% e 40% da foto (juntei o que cada um achou);
+- discordaram mais de 40% (usei só o melhor; confira se não falta alguém);
+- a logo ficou com algum vazado entre 5% e 15%;
+- a foto já veio recortada e foi usada direto.
+
+Além disso, a borda de todo recorte é **encolhida um fio e esfumada**, para a foto não
+entrar na arte com contorno claro nem com corte de tesoura.
