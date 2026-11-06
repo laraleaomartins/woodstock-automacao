@@ -242,7 +242,10 @@ export function criarAmbiente() {
       MimeType: { JSON: 'JSON' }
     },
     HtmlService: {
-      createHtmlOutput: (h) => ({ setTitle: () => ({ _html: h }) }),
+      createHtmlOutput: (h) => ({ setTitle: () => ({ addMetaTag: () => ({ _html: h }), _html: h }) }),
+      createHtmlOutputFromFile: (nome) => ({
+        getContent: () => fs.readFileSync(path.join(FONTES, nome + '.html'), 'utf8')
+      }),
       createTemplateFromFile: () => ({ evaluate: () => ({ setTitle: () => ({ addMetaTag: () => ({}) }) }) })
     },
     MimeType: { PLAIN_TEXT: 'text/plain' },
