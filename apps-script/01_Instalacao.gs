@@ -59,7 +59,10 @@ function garantirPlanilha() {
   }
   ss.setSpreadsheetTimeZone(TZ);
 
-  criarAba(ss, ABA.PROGRAMACOES, COL_PROGRAMACOES);
+  var progs = criarAba(ss, ABA.PROGRAMACOES, COL_PROGRAMACOES);
+  // Data e hora do show como texto puro: senão a planilha converte "21:00" num
+  // valor de hora e devolve uma data de 1899 no lugar do horário.
+  progs.getRange(2, COL_PROGRAMACOES.indexOf('DataShow') + 1, 1000, 2).setNumberFormat('@');
   criarAba(ss, ABA.AGENDAMENTOS, COL_AGENDAMENTOS);
   criarAba(ss, ABA.LOGS, COL_LOGS);
 
@@ -304,4 +307,18 @@ function configurarInstagram(token, idDoNegocio, idDaConta) {
   registrar('INFO', '', 'CREDENCIAIS_IG', 'Acesso ao Instagram guardado (@' + conta.username + ').');
   return 'Conectado a @' + conta.username + '. A trava PUBLICAR_DE_VERDADE segue em ' +
     cfg('PUBLICAR_DE_VERDADE') + '.';
+}
+
+/**
+ * Troca a frequência com que o sistema confere a fila de publicação.
+ * Fora de teste o normal é 15 minutos; durante um teste rápido, 1 minuto.
+ */
+function frequenciaDaPublicacao(minutos) {
+  var n = Number(minutos) || 15;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'rotinaPublicacao') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('rotinaPublicacao').timeBased().everyMinutes(n).create();
+  registrar('INFO', '', 'FREQUENCIA_PUBLICACAO', 'A fila passa a ser conferida a cada ' + n + ' min.');
+  return 'Conferindo a fila a cada ' + n + ' minutos.';
 }

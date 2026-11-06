@@ -196,6 +196,8 @@ teste('Horário gravado como hora pela planilha ainda é entendido certo', (ctx,
     'o objeto de data de 1899 é interpretado como 8h');
   conferir(JSON.stringify(ctx.paraHora('Sat Dec 30 1899 08:00:00 GMT-0306')) === '{"h":8,"min":0}',
     'e o texto completo dessa data também');
+  conferir(ctx.horaTexto(new Date(1899, 11, 30, 21, 0, 0)) === '21:00',
+    'o horário do show aparece como 21:00, não como uma data de 1899');
 
   ctx.definirCfg('MODO_OPERACAO', 'AUTOMATICO');
   const dataShow = emDias(12);
@@ -210,6 +212,42 @@ teste('Horário gravado como hora pela planilha ainda é entendido certo', (ctx,
     'a primeira saiu às 08:00, não às 23:18');
   const horas = (feed[1] - feed[0]) / 3600000;
   conferir(Math.abs(horas - 5) < 0.1, 'o intervalo voltou a ser de 5h (ficou ' + horas + 'h)');
+});
+
+teste('Intervalo curto é respeitado, sem a trava de 15 minutos atrapalhar', (ctx, estado) => {
+  ctx.definirCfg('MODO_OPERACAO', 'AUTOMATICO');
+  ctx.definirCfg('INTERVALO_FEED_HORAS', '0.05');     // 3 minutos
+  ctx.definirCfg('INTERVALO_STORIES_HORAS', '0.05');
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Teste Rapido', data: iso(emDias(6)) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+
+  const minutos = (canal) => {
+    const t = ctx.linhas('AGENDAMENTOS').filter((a) => a.Canal === canal)
+      .map((a) => new Date(a.QuandoISO)).sort((x, y) => x - y);
+    return [(t[1] - t[0]) / 60000, (t[2] - t[1]) / 60000];
+  };
+  const feed = minutos('FEED'), story = minutos('STORY');
+  conferir(feed.every((m) => Math.abs(m - 3) < 0.6),
+    'as peças de feed saíram de 3 em 3 minutos (deu ' + feed.join(' e ') + ')');
+  conferir(story.every((m) => Math.abs(m - 3) < 0.6),
+    'os stories também (deu ' + story.join(' e ') + ')');
+  conferir(ctx.linhas('AGENDAMENTOS').length === 6, 'as 6 peças entraram na fila');
+});
+
+teste('Com intervalo normal, duas peças do mesmo canal não saem coladas', (ctx, estado) => {
+  ctx.definirCfg('MODO_OPERACAO', 'AUTOMATICO');
+  const dia = iso(emDias(8));
+  const a = ctx.processarResposta(respostaFalsa(ctx, estado, { banda: 'Banda Um', data: dia }));
+  ctx.registrarArtesProntas(a, artesFalsas(a));
+  const b = ctx.processarResposta(respostaFalsa(ctx, estado, { banda: 'Banda Dois', data: dia }));
+  ctx.registrarArtesProntas(b, artesFalsas(b));
+
+  const feed = ctx.linhas('AGENDAMENTOS').filter((x) => x.Canal === 'FEED')
+    .map((x) => new Date(x.QuandoISO).getTime()).sort((x, y) => x - y);
+  let menor = Infinity;
+  for (let i = 1; i < feed.length; i++) menor = Math.min(menor, (feed[i] - feed[i - 1]) / 60000);
+  conferir(menor >= 15, 'a menor distância entre dois posts de feed foi ' + menor + ' min');
 });
 
 teste('Desligar o feed para de agendar feed e mantém os stories', (ctx, estado) => {

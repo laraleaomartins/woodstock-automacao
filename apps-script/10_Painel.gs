@@ -19,9 +19,9 @@ function paginaDoPainel(chave) {
       'instalação, terminado em <code>?chave=...</code></p></div>')
       .setTitle('Painel Woodstock');
   }
-  var t = HtmlService.createTemplateFromFile('Painel');
-  t.chave = chave;
-  return t.evaluate()
+  var html = HtmlService.createHtmlOutputFromFile('Painel').getContent()
+    .replace('__CHAVE__', chave);
+  return HtmlService.createHtmlOutput(html)
     .setTitle('Painel Woodstock')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -47,7 +47,7 @@ function painelCarregar(chave) {
       instagram: String(p.InstagramBanda),
       dataShow: fmt(data, 'dd/MM/yyyy'),
       dataShowISO: fmt(data, 'yyyy-MM-dd'),
-      horaShow: String(p.HoraShow),
+      horaShow: horaTexto(p.HoraShow),
       diaSemana: String(p.DiaSemana),
       situacao: String(p.Situacao),
       modo: String(p.Modo || ''),

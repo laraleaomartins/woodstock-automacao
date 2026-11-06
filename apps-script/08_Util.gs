@@ -165,3 +165,12 @@ function json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+/**
+ * Devolve sempre "HH:MM", venha o horário como texto ou como valor de hora da
+ * planilha (que chega como data de 1899 e, cru, apareceria assim para quem lê).
+ */
+function horaTexto(valor) {
+  var h = paraHora(valor);
+  return pad2(h.h) + ':' + pad2(h.min);
+}

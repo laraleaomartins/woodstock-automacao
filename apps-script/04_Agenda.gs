@@ -66,7 +66,7 @@ function distribuir(prog, artes, legendas, canal, inicio, intervaloHoras, limite
     var url = (artes[canal] || {})[opcao];
     if (!url) return;
     quando = aplicarJanela(quando);
-    quando = evitarColisao(quando, canal, ocupados);
+    quando = evitarColisao(quando, canal, ocupados, intervaloHoras);
     if (quando.getTime() > limiteFinal.getTime()) return;
     ocupados.push({ canal: canal, ts: quando.getTime() });
     saida.push({
@@ -100,15 +100,22 @@ function aplicarJanela(d) {
   return r;
 }
 
-/** Dois posts do mesmo canal nunca saem no mesmo minuto. */
-function evitarColisao(quando, canal, ocupados) {
+/**
+ * Duas peças do mesmo canal não saem coladas uma na outra — nem desta programação
+ * nem de outra. A distância mínima é de 15 minutos, mas nunca maior que o intervalo
+ * que você configurou: se você pediu 3 minutos, 3 minutos é o que vale.
+ */
+function evitarColisao(quando, canal, ocupados, intervaloHoras) {
+  var minimoMs = Math.min(15 * 60000, Math.max(Number(intervaloHoras) || 0, 0) * 3600000);
+  if (minimoMs <= 0) return new Date(quando.getTime());
+
   var r = new Date(quando.getTime());
   for (var tentativa = 0; tentativa < 48; tentativa++) {
     var choque = ocupados.some(function (o) {
-      return o.canal === canal && Math.abs(o.ts - r.getTime()) < 15 * 60000;
+      return o.canal === canal && Math.abs(o.ts - r.getTime()) < minimoMs;
     });
     if (!choque) return r;
-    r = aplicarJanela(new Date(r.getTime() + 20 * 60000));
+    r = aplicarJanela(new Date(r.getTime() + minimoMs + 60000));
   }
   return r;
 }

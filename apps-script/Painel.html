@@ -75,7 +75,9 @@
 </dialog>
 
 <script>
-var CHAVE = <?= JSON.stringify(chave) ?>;
+// O valor entra aqui por substituição de texto, não pelo mecanismo de template:
+// ele escapa o conteúdo e a chave chegaria deturpada.
+var CHAVE = '__CHAVE__';
 var dados = null;
 
 function recado(texto, ms){

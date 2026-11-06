@@ -14,11 +14,11 @@ var MAX_INSCRICOES_POR_HORA = 20;
 var LADO_MAXIMO_FOTO = 2400;
 
 function paginaDeInscricao() {
-  var t = HtmlService.createTemplateFromFile('Inscricao');
-  t.perfil = cfg('PERFIL_OFICIAL');
-  t.informativo = TEXTO_INFORMATIVO;
-  t.ladoMaximo = LADO_MAXIMO_FOTO;
-  return t.evaluate()
+  var html = HtmlService.createHtmlOutputFromFile('Inscricao').getContent()
+    .replace('__PERFIL__', cfg('PERFIL_OFICIAL'))
+    .replace('__LADO_MAXIMO__', String(LADO_MAXIMO_FOTO))
+    .replace('__INFORMATIVO__', JSON.stringify(TEXTO_INFORMATIVO));
+  return HtmlService.createHtmlOutput(html)
     .setTitle('Woodstock Rock Bar — cadastro da sua apresentação')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }

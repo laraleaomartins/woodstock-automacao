@@ -57,6 +57,8 @@ function doPost(e) {
         return json({ ok: true, resultado: configurarInstagram(corpo.token, corpo.business_id, corpo.ig_user_id) });
       case 'testar_instagram':
         return json({ ok: true, resultado: testarInstagram() });
+      case 'frequencia_publicacao':
+        return json({ ok: true, resultado: frequenciaDaPublicacao(corpo.minutos) });
       case 'recalcular':
         return json({ ok: true, resultado: recalcularProgramacao(corpo.id) });
       case 'aprovar':

@@ -90,9 +90,11 @@
 </div>
 
 <script>
-var PERFIL = <?= JSON.stringify(perfil) ?>;
-var LADO_MAXIMO = <?= ladoMaximo ?>;
-document.getElementById('informativo').textContent = <?= JSON.stringify(informativo) ?>;
+// Valores por substituição de texto: o mecanismo de template escapa o conteúdo e
+// o texto chegaria com lixo no lugar das aspas.
+var PERFIL = '__PERFIL__';
+var LADO_MAXIMO = __LADO_MAXIMO__;
+document.getElementById('informativo').textContent = __INFORMATIVO__;
 
 var escolhidas = { fotos: [], logo: null };
 

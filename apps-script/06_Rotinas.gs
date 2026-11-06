@@ -201,7 +201,7 @@ function resumoDasArtes(prog, totalFeed, totalStory, avisos) {
     ? 'ATENÇÃO, confira a arte antes de aprovar:\n  - ' + avisos.join('\n  - ') + '\n\n'
     : '';
   return 'As artes de ' + prog.Banda + ' ficaram prontas.\n\n' + alerta +
-    'Show: ' + fmt(paraData(prog.DataShow), 'dd/MM/yyyy') + ' às ' + prog.HoraShow + '\n' +
+    'Show: ' + fmt(paraData(prog.DataShow), 'dd/MM/yyyy') + ' às ' + horaTexto(prog.HoraShow) + '\n' +
     'Peças: ' + totalFeed + ' para o feed e ' + totalStory + ' para stories.\n\n';
 }
 
