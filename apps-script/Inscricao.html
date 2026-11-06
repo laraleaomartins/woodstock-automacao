@@ -57,7 +57,7 @@
     <label>@ do Instagram da banda</label>
     <input type="text" id="instagram" required placeholder="@suabanda" maxlength="40">
 
-    <label>Fotos da banda <span class="op">— até 2</span></label>
+    <label>Fotos da banda <span class="op">— até 4</span></label>
     <div class="arquivo" onclick="document.getElementById('fotos').click()">
       <div class="rot" id="rotFotos">Toque para escolher as fotos</div>
       <input type="file" id="fotos" accept="image/*" multiple>
@@ -65,6 +65,14 @@
     <div class="previas" id="prevFotos"></div>
     <div class="dica">Boa resolução. Se já tiver um PNG recortado com fundo transparente,
       pode mandar que usamos direto.</div>
+
+    <div class="confirma">
+      <input type="checkbox" id="juntar">
+      <label for="juntar" style="margin:0;font-weight:400">São fotos de integrantes
+        <b>separados</b>, para juntar numa foto só da banda.</label>
+    </div>
+    <div class="dica">Marque só se mandou cada pessoa numa foto. Se as fotos já mostram a
+      banda reunida, deixe desmarcado.</div>
 
     <label>Logotipo da banda <span class="op">— opcional</span></label>
     <div class="arquivo" onclick="document.getElementById('logo').click()">
@@ -156,7 +164,7 @@ function ligarCampo(idCampo, idRotulo, idPrevia, limite){
     if (idCampo === 'fotos') escolhidas.fotos = lista; else escolhidas.logo = lista[0] || null;
   });
 }
-ligarCampo('fotos', 'rotFotos', 'prevFotos', 2);
+ligarCampo('fotos', 'rotFotos', 'prevFotos', 4);
 ligarCampo('logo', 'rotLogo', 'prevLogo', 1);
 
 document.getElementById('f').addEventListener('submit', function(ev){
@@ -185,6 +193,7 @@ document.getElementById('f').addEventListener('submit', function(ev){
       hora: document.getElementById('hora').value,
       instagram: document.getElementById('instagram').value,
       sobrenome: document.getElementById('sobrenome').value,
+      juntar: document.getElementById('juntar').checked,
       fotos: prontas,
       logo: logo
     };

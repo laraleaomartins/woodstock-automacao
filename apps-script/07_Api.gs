@@ -132,7 +132,8 @@ function jobsDeArtes(limite) {
         mesAbrev: MESES_ABREV[data.getMonth()],
         diaSemana: String(p.DiaSemana || DIAS_SEMANA[data.getDay()]),
         fotos: (arquivos.fotos || []).map(function (f) { return { id: f.id, nome: f.nome }; }),
-        logo: arquivos.logo ? { id: arquivos.logo.id, nome: arquivos.logo.nome } : null
+        logo: arquivos.logo ? { id: arquivos.logo.id, nome: arquivos.logo.nome } : null,
+        juntar: arquivos.juntar === true
       });
       gravarCampos(ABA.PROGRAMACOES, p._linha, { Situacao: SIT.GERANDO_ARTES, Erro: '' });
       registrar('INFO', p.ID, 'ARTES_EM_PRODUCAO', 'Entregue ao GitHub para produção.');

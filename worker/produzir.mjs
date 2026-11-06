@@ -93,8 +93,10 @@ async function produzir(job) {
   console.log(`  arquivos baixados: ${job.fotos.length} foto(s)${job.logo ? ' + logo' : ''}`);
 
   const jsonImagens = path.join(entrada, 'imagens.json');
-  rodar(PYTHON, [path.join(AQUI, 'preparar_imagens.py'), entrada, GERADOR, job.id,
-    '--json', jsonImagens], { stdio: ['ignore', 'inherit', 'inherit'] });
+  const argumentos = [path.join(AQUI, 'preparar_imagens.py'), entrada, GERADOR, job.id,
+    '--json', jsonImagens];
+  if (job.juntar) argumentos.push('--juntar');
+  rodar(PYTHON, argumentos, { stdio: ['ignore', 'inherit', 'inherit'] });
   const imagens = JSON.parse(fs.readFileSync(jsonImagens, 'utf8'));
   const avisos = imagens._avisos || [];
   avisos.forEach((a) => console.log(`  aviso: ${a}`));

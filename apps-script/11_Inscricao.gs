@@ -54,7 +54,7 @@ function receberInscricao(dados) {
 }
 
 function normalizarInscricao(dados) {
-  var fotos = (dados.fotos || []).slice(0, 2).map(function (f, i) {
+  var fotos = (dados.fotos || []).slice(0, 4).map(function (f, i) {
     return blobDeEnvio(f, 'foto' + (i + 1));
   });
   return {
@@ -64,7 +64,8 @@ function normalizarInscricao(dados) {
     dataShow: dados.data ? paraData(dados.data) : null,
     hora: paraHora(dados.hora || '20:00'),
     arquivos: fotos,
-    logoArquivo: dados.logo ? blobDeEnvio(dados.logo, 'logo') : null
+    logoArquivo: dados.logo ? blobDeEnvio(dados.logo, 'logo') : null,
+    juntar: dados.juntar === true
   };
 }
 

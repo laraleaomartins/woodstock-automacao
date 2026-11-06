@@ -141,6 +141,24 @@ meio_tom = ((vals > 20) & (vals < 235)).sum()
 conferir(meio_tom > 200, "a borda ganhou %d pixels de transição" % meio_tom)
 conferir(vals.max() > 240 and vals.min() == 0, "o miolo continua sólido e o fora, vazio")
 
+print("\n• Integrantes separados viram uma foto só da banda")
+montada = os.path.join(tempfile.mkdtemp(), "banda.png")
+fontes = [os.path.join(RAIZ, "gerador", "bands", n)
+          for n in ("kundera_solo_bw.png", "pelada_bw.png")]
+caminho, quantos = pi.juntar_integrantes(fontes, montada)
+junta = Image.open(caminho).convert("RGBA")
+alfa = __import__("numpy").array(junta.split()[3])
+conferir(quantos == 2, "juntou as 2 fotos")
+conferir(junta.width > junta.height, "a montagem ficou deitada, boa para as opções A e C")
+vazio = float((alfa <= 128).mean())
+conferir(vazio > 0.10,
+         "a montagem tem fundo transparente (%.0f%% vazado), não sólido" % (vazio * 100))
+meio = junta.width // 2
+esq = __import__("numpy").where(alfa[:, :meio].max(axis=1) > 128)[0]
+dire = __import__("numpy").where(alfa[:, meio:].max(axis=1) > 128)[0]
+conferir(abs(int(esq.max()) - int(dire.max())) < junta.height * 0.02,
+         "os pés dos dois lados terminam na mesma linha")
+
 print("\n• Foto vazia é recusada em vez de virar arte quebrada")
 vazia = tempfile.mkdtemp()
 Image.new("RGBA", (400, 400), (0, 0, 0, 0)).save(os.path.join(vazia, "foto1.png"))

@@ -163,6 +163,8 @@ function guardarArquivos(destino, d) {
     if (guardado) saida.fotos.push(guardado);
   });
   if (d.logoArquivo) saida.logo = gravarArquivo(destino, d.logoArquivo, 'logo');
+  // Quem se inscreveu disse se são integrantes separados para juntar numa foto só.
+  saida.juntar = d.juntar === true;
   return saida;
 }
 

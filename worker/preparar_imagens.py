@@ -47,6 +47,9 @@ MODELO_CONFERENCIA = os.environ.get("REMBG_MODELO_CONFERENCIA", "u2net")
 MODELO_RESGATE = os.environ.get("REMBG_MODELO_RESGATE", "isnet-general-use")
 CONCORDANCIA_MINIMA = 0.88   # abaixo disso, junta o que cada modelo achou
 CONCORDANCIA_RESGATE = 0.60  # abaixo disso, juntar cola fundo: fica só o melhor
+# Acima deste ponto o fundo é considerado bagunçado e vale a pena recortar. Fundos
+# limpos medidos (estúdio com degradê, parede lisa) ficaram entre 0,4 e 2,6.
+BAGUNCA_PARA_RECORTAR = float(os.environ.get("BAGUNCA_PARA_RECORTAR", "8"))
 
 
 def _mascara_de_bytes(dados):
@@ -86,6 +89,67 @@ def _aplicar_mascara(entrada, mascara, saida):
     im.save(saida)
 
 
+def juntar_integrantes(recortadas, destino, folga=0.04):
+    """
+    Monta uma foto de banda a partir de fotos separadas de cada integrante.
+
+    Cada pessoa já vem recortada. Aqui elas são postas lado a lado, com a mesma
+    altura e os pés na mesma linha, sobre fundo transparente — que é como o kit
+    descreve a montagem ("lado a lado, mantendo rostos, roupas e instrumentos").
+
+    Nada é inventado: ninguém é redesenhado, só reposicionado.
+    """
+    pessoas = []
+    for caminho in recortadas:
+        im = Image.open(caminho).convert("RGBA")
+        cx = im.getbbox()
+        if not cx:
+            continue
+        pessoas.append(im.crop(cx))
+    if len(pessoas) < 2:
+        raise RuntimeError("preciso de pelo menos duas fotos para montar a banda")
+
+    # Mesma altura para todo mundo, para ninguém virar gigante ao lado do outro.
+    altura = int(np.median([p.height for p in pessoas]))
+    altura = max(600, min(altura, 1800))
+    ajustadas = []
+    for p in pessoas:
+        nova_largura = max(1, int(p.width * altura / p.height))
+        ajustadas.append(p.resize((nova_largura, altura), Image.LANCZOS))
+
+    espaco = int(altura * folga)
+    largura = sum(p.width for p in ajustadas) + espaco * (len(ajustadas) - 1)
+    tela = Image.new("RGBA", (largura, altura), (0, 0, 0, 0))
+    x = 0
+    for p in ajustadas:
+        tela.alpha_composite(p, (x, 0))      # pés alinhados: todos terminam embaixo
+        x += p.width + espaco
+    tela.save(destino)
+    return destino, len(ajustadas)
+
+
+def bagunca_do_fundo(caminho, mascara):
+    """
+    Mede o quanto o fundo da foto é bagunçado, fora da área de quem está na foto.
+
+    Usa variação LOCAL, não o desvio geral: fundo de estúdio com degradê varia muito
+    de um canto ao outro, mas quase nada de um pixel para o vizinho. Bagunça — bar,
+    rua, gente atrás — varia muito de perto. Medido em fundos limpos: de 0,4 a 2,6.
+    """
+    from scipy import ndimage
+
+    cinza = np.array(Image.open(caminho).convert("L"), float)
+    m = np.array(Image.fromarray((mascara * 255).astype("uint8"), "L")
+                 .resize((cinza.shape[1], cinza.shape[0]))) > 128
+    fundo = ~ndimage.binary_dilation(m, iterations=20)
+    if fundo.sum() < 2000:
+        return 0.0        # quase não há fundo: nada a tirar
+    media = ndimage.uniform_filter(cinza, 9)
+    media2 = ndimage.uniform_filter(cinza * cinza, 9)
+    local = np.sqrt(np.clip(media2 - media * media, 0, None))
+    return float(np.median(local[fundo]))
+
+
 def conferir_tem_conteudo(imagem):
     """Imagem quase toda transparente vira arte em branco — melhor recusar aqui."""
     visivel = (np.array(imagem.split()[3]) > 128).mean()
@@ -94,7 +158,7 @@ def conferir_tem_conteudo(imagem):
                            % (visivel * 100))
 
 
-def recortar_fundo(entrada, saida):
+def recortar_fundo(entrada, saida, obrigatorio=False):
     """
     Recorta o fundo e diz o quanto dá para confiar no resultado.
 
@@ -117,6 +181,14 @@ def recortar_fundo(entrada, saida):
         f.write(cortado)
     if not tem_transparencia_real(saida):
         raise RuntimeError("o recorte saiu sem transparência — foto provavelmente ruim")
+
+    # Só recorta quem precisa. Fundo limpo — estúdio, parede lisa, degradê — fica
+    # como está: tirar não melhora nada e ainda arrisca deixar contorno na arte.
+    bagunca = bagunca_do_fundo(entrada, _mascara(saida))
+    if bagunca < BAGUNCA_PARA_RECORTAR and not obrigatorio:
+        Image.open(entrada).convert("RGBA").save(saida)
+        return saida, ("fundo limpo (medida %.1f): usei a foto inteira, sem recortar"
+                       % bagunca)
 
     # Mesmo o recorte bom sai com uma carreirinha do fundo antigo na borda.
     pronta = Image.open(saida).convert("RGBA")
@@ -290,7 +362,7 @@ def recortar_logo(origem, destino, tratar_logo_py):
     return escolhido[0], medidas
 
 
-def preparar(pasta_entrada, pasta_gerador, ident):
+def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
     bands = os.path.join(pasta_gerador, "bands")
     os.makedirs(bands, exist_ok=True)
     trabalho = os.path.join(pasta_entrada, "_trabalho")
@@ -320,7 +392,9 @@ def preparar(pasta_entrada, pasta_gerador, ident):
                 pronta.save(destino)
                 avisos.append("foto%d já veio recortada; usada direto" % (i + 1))
             else:
-                _, aviso = recortar_fundo(foto, destino)
+                # Para juntar integrantes é obrigatório recortar: sem tirar o fundo
+                # de cada um, as pessoas não encaixam lado a lado.
+                _, aviso = recortar_fundo(foto, destino, obrigatorio=juntar)
                 if aviso:
                     avisos.append("foto%d: %s" % (i + 1, aviso))
             recortadas.append(destino)
@@ -329,6 +403,19 @@ def preparar(pasta_entrada, pasta_gerador, ident):
 
     if not recortadas:
         raise RuntimeError("nenhuma das fotos pôde ser recortada; " + " | ".join(avisos))
+
+    if juntar:
+        if len(recortadas) < 2:
+            avisos.append("veio só uma foto; não havia o que juntar")
+        else:
+            montada = os.path.join(trabalho, "banda_montada.png")
+            try:
+                _, quantos = juntar_integrantes(recortadas, montada)
+                avisos.append("montei %d integrantes lado a lado numa foto só da banda"
+                              % quantos)
+                recortadas = [montada] + recortadas
+            except Exception as e:
+                avisos.append("não consegui montar a banda (%s); usei as fotos separadas" % e)
 
     # Cada layout tem um espaço com formato diferente, e é o próprio kit que mostra
     # qual foto vai em qual: no exemplo dele, a foto DEITADA do trio vai nas opções A
@@ -378,7 +465,7 @@ def preparar(pasta_entrada, pasta_gerador, ident):
 
 if __name__ == "__main__":
     entrada, gerador, ident = sys.argv[1], sys.argv[2], sys.argv[3]
-    resultado = preparar(entrada, gerador, ident)
+    resultado = preparar(entrada, gerador, ident, juntar="--juntar" in sys.argv)
     destino = None
     if "--json" in sys.argv:
         destino = sys.argv[sys.argv.index("--json") + 1]
