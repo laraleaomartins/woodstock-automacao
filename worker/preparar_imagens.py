@@ -100,10 +100,16 @@ CONCORDANCIA_MONTAGEM = 0.25
 
 # Resolução em que o recorte é calculado. O maior espaço de foto em qualquer peça
 # tem 1080 de largura e 1050 de altura, então passar disso é detalhe que ninguém
-# vai ver — e custa caro: o matting cresce com o número de pixels, e a oficina do
-# GitHub tem 25 minutos para a programação inteira. Foto de celular chega com
-# 3000 e poucos pixels; reduzir antes é o que mantém o recorte dentro do orçamento.
-LADO_TRABALHO = int(os.environ.get("LADO_TRABALHO", "1280"))
+# vai ver — e custa caro duas vezes: tempo e memória crescem com o número de
+# pixels, e o recortador pede um bloco contínuo grande de uma vez só. Foto de
+# celular chega com 3000 e poucos pixels; reduzir antes é o que mantém o recorte
+# dentro do orçamento.
+#
+# Já esteve em 1280, e a oficina do GitHub morria por falta de memória — sem erro,
+# sem mensagem, o processo simplesmente desaparecia. Em 1024 o número de pixels cai
+# para dois terços, e a arte não perde nada que se veja: o recorte ainda é
+# calculado acima do tamanho em que vai aparecer.
+LADO_TRABALHO = int(os.environ.get("LADO_TRABALHO", "1024"))
 
 
 _sessoes = {}
@@ -111,19 +117,51 @@ _sessoes = {}
 
 def sessao(modelo):
     """
-    Guarda o recortador já carregado.
+    Guarda na memória UM recortador de cada vez.
 
     Carregar o modelo custa quase tanto quanto usá-lo, e uma banda manda até quatro
-    fotos. Sem isto, o mesmo modelo era lido do disco e montado na memória uma vez
-    por foto — tempo jogado fora numa oficina que tem 25 minutos para a programação
-    inteira, e memória picada à toa, que foi o que fez o recorte falhar por falta
-    de espaço num dos testes.
+    fotos: guardar o principal entre as fotos economiza minutos.
+
+    O que não dá é guardar todos. Houve uma versão que guardava — e os três
+    recortadores mais o modelo de matting ficavam residentes ao mesmo tempo, somando
+    mais de um giga só de pesos, antes de contar o espaço de trabalho de cada
+    imagem. Na oficina do GitHub isso estourava a memória e o sistema operacional
+    MATAVA o processo. Morte por falta de memória não é erro que dê para pegar: não
+    há exceção, o programa simplesmente deixa de existir — então a tentativa de
+    refazer menor nem chegava a rodar, a execução caía sempre aos três minutos, e a
+    programação ficava presa em "gerando artes".
+
+    Então só o modelo principal fica guardado — é ele que roda em toda foto, e é
+    dele que vem a economia. Os de conferência passam por `conferidor`, que os
+    carrega na hora e os descarta logo depois.
     """
     from rembg import new_session
 
     if modelo not in _sessoes:
+        _sessoes.clear()
         _sessoes[modelo] = new_session(modelo)
     return _sessoes[modelo]
+
+
+def conferidor(modelo, usar):
+    """
+    Empresta um recortador de conferência e o devolve à memória em seguida.
+
+    `usar` recebe a sessão e devolve o resultado. Descartar explicitamente, em vez
+    de esperar a faxina automática da linguagem, importa aqui: o peso do modelo vive
+    fora do controle do Python, dentro do motor que executa a rede, e só some quando
+    a sessão é solta. Guardar os três ao mesmo tempo foi o que matou a oficina.
+    """
+    import gc
+
+    from rembg import new_session
+
+    sessao_temporaria = new_session(modelo)
+    try:
+        return usar(sessao_temporaria)
+    finally:
+        del sessao_temporaria
+        gc.collect()
 
 
 def _mascara_de_bytes(dados):
@@ -468,8 +506,8 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
     aviso = None
     concordancia = 1.0
     try:
-        outra = _mascara_de_bytes(remove(bruto, session=sessao(MODELO_CONFERENCIA),
-                                         post_process_mask=True))
+        outra = conferidor(MODELO_CONFERENCIA, lambda ses: _mascara_de_bytes(
+            remove(bruto, session=ses, post_process_mask=True)))
         uniao = (principal | outra).sum()
         concordancia = (principal & outra).sum() / uniao if uniao else 1.0
 
@@ -487,8 +525,8 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
             # perde a mesa ou o instrumento. Juntando o que cada um achou, recupera-se
             # boa parte do que seria jogado fora. Medido na foto problemática: sozinho o
             # melhor modelo perdia 27% da imagem; juntando os três, perde 17%.
-            terceira = _mascara_de_bytes(remove(bruto, session=sessao(MODELO_RESGATE),
-                                                post_process_mask=True))
+            terceira = conferidor(MODELO_RESGATE, lambda ses: _mascara_de_bytes(
+                remove(bruto, session=ses, post_process_mask=True)))
             recuperar_com(saida, principal | outra | terceira)
             aviso = ("o recorte de fundo desta foto é duvidoso (os recortadores "
                      "discordaram em %.0f%% da área, e juntei o que cada um achou). "
