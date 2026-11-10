@@ -63,6 +63,10 @@ function doPost(e) {
         return json({ ok: true, resultado: configurarGithub(corpo.token, corpo.repo) });
       case 'disparar_oficina':
         return json({ ok: true, resultado: dispararOficina() });
+      case 'relatorio':
+        // O mesmo relatório do painel, pela API. Serve para conferir o arquivo sem
+        // depender do navegador, e para quem quiser automatizar o envio dele.
+        return json({ ok: true, resultado: painelRelatorio(corpo.chave, corpo.periodo) });
       case 'destravar':
         return json({ ok: true, resultado: destravarProducao() });
       case 'recalcular':
@@ -136,7 +140,8 @@ function jobsDeArtes(limite) {
         fotos: (arquivos.fotos || []).map(function (f) { return { id: f.id, nome: f.nome }; }),
         logo: arquivos.logo ? { id: arquivos.logo.id, nome: arquivos.logo.nome } : null,
         juntar: arquivos.juntar === true,
-        couvert: String(arquivos.couvert || '')
+        couvert: String(arquivos.couvert || ''),
+        tentativa: Number(arquivos.tentativa || 1)
       });
       gravarCampos(ABA.PROGRAMACOES, p._linha, { Situacao: SIT.GERANDO_ARTES, Erro: '' });
       registrar('INFO', p.ID, 'ARTES_EM_PRODUCAO', 'Entregue ao GitHub para produção.');

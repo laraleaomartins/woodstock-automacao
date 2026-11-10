@@ -170,7 +170,7 @@ var LARGURA_MINIATURA = 220;
  */
 function periodoDoRelatorio(nome) {
   var hoje = new Date();
-  var de, ate, titulo;
+  var de, ate, titulo, naCapa;
 
   if (nome === 'SEMANAL') {
     // Semana de segunda a domingo. getDay() devolve 0 para domingo.
@@ -178,21 +178,24 @@ function periodoDoRelatorio(nome) {
     de = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - diaDaSemana);
     ate = new Date(de.getFullYear(), de.getMonth(), de.getDate() + 6);
     titulo = 'semanal';
+    naCapa = 'Semana de ' + fmt(de, 'dd/MM') + ' a ' + fmt(ate, 'dd/MM');
   } else if (nome === 'MENSAL') {
     de = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     ate = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
     titulo = 'mensal';
+    naCapa = MESES[hoje.getMonth()];
   } else if (nome === 'TRIMESTRAL') {
     var primeiroMes = Math.floor(hoje.getMonth() / 3) * 3;
     de = new Date(hoje.getFullYear(), primeiroMes, 1);
     ate = new Date(hoje.getFullYear(), primeiroMes + 3, 0);
     titulo = 'trimestral';
+    naCapa = MESES[primeiroMes] + ' a ' + MESES[primeiroMes + 2];
   } else {
     return null;
   }
 
   ate.setHours(23, 59, 59, 999);
-  return { de: de, ate: ate, nome: titulo };
+  return { de: de, ate: ate, nome: titulo, titulo: naCapa };
 }
 
 /**
@@ -253,13 +256,29 @@ function miniaturaEmbutida(url) {
     try {
       var r = UrlFetchApp.fetch(tentativas[i], { muteHttpExceptions: true });
       if (r.getResponseCode() === 200) {
-        return 'data:image/jpeg;base64,' + Utilities.base64Encode(r.getBlob().getBytes());
+        // O tipo vem da própria resposta: a logo é PNG e as artes são JPEG, e
+        // anunciar o tipo errado faz leitor de PDF nenhum mostrar a imagem.
+        var blob = r.getBlob();
+        var tipo = String(blob.getContentType() || 'image/jpeg');
+        return 'data:' + tipo + ';base64,' + Utilities.base64Encode(blob.getBytes());
       }
     } catch (e) { /* tenta a próxima */ }
   }
   return '';
 }
 
+/**
+ * Monta o relatório no modelo da prestação de contas do bar.
+ *
+ * O desenho segue o documento que já é usado para prestar contas: capa escura com
+ * os números grandes, uma página de resumo com a tabela do que foi entregue, e
+ * depois uma página por show, com as peças em miniatura e o que aconteceu com
+ * cada publicação. Mesma família de tipos (Anton nos títulos, Barlow no texto),
+ * mesmas cores, mesmo rodapé.
+ *
+ * Nossa "campanha" é o show: é a unidade em que esta casa trabalha, e é ela que
+ * agrupa as seis peças e as publicações que saíram delas.
+ */
 function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
   var porProg = {};
   posts.forEach(function (a) {
@@ -267,17 +286,86 @@ function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
     (porProg[k] = porProg[k] || []).push(a);
   });
 
-  var publicadas = 0;
-  var falhas = 0;
-  posts.forEach(function (a) {
-    var d = new Date(a.QuandoISO);
-    if (d >= de && d <= ate) {
-      if (String(a.Situacao) === 'PUBLICADO') publicadas++;
-      if (String(a.Situacao) === 'FALHA') falhas++;
-    }
+  var contas = { feed: 0, story: 0, publicadas: 0, falhas: 0, agendadas: 0 };
+  progs.forEach(function (p) {
+    var artes = {};
+    try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
+    contas.feed += Object.keys(artes.FEED || {}).length;
+    contas.story += Object.keys(artes.STORY || {}).length;
+    (porProg[String(p.ID)] || []).forEach(function (a) {
+      if (String(a.Situacao) === 'PUBLICADO') contas.publicadas++;
+      else if (String(a.Situacao) === 'FALHA') contas.falhas++;
+      else if (String(a.Situacao) === 'AGENDADO') contas.agendadas++;
+    });
   });
+  var pecas = contas.feed + contas.story;
 
-  var blocos = progs.map(function (p) {
+  var numero = function (valor, rotulo) {
+    return '<div class="num"><b>' + valor + '</b><span>' + rotulo + '</span></div>';
+  };
+
+  var capa =
+    '<section class="folha capa">' +
+    marcaDaCapa(progs) +
+    '<p class="etiqueta">Prestação de contas · comunicação e redes sociais</p>' +
+    '<h1>' + faixa.titulo + ' <em>' + fmt(ate, 'yyyy') + '</em></h1>' +
+    '<div class="numeros">' +
+    numero(pecas, 'peças produzidas') +
+    numero(progs.length, progs.length === 1 ? 'show' : 'shows') +
+    numero(contas.feed, 'posts de feed') +
+    numero(contas.story, 'stories') +
+    numero(contas.publicadas, contas.publicadas === 1 ? 'publicada' : 'publicadas') +
+    '</div>' +
+    '<p class="pe">' + ENDERECO + ' · ' + cfg('PERFIL_OFICIAL') + '</p>' +
+    '</section>';
+
+  var linhasResumo = progs.map(function (p) {
+    var artes = {};
+    try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
+    var nf = Object.keys(artes.FEED || {}).length;
+    var ns = Object.keys(artes.STORY || {}).length;
+    var meus = porProg[String(p.ID)] || [];
+    var quando = meus.length
+      ? fmt(new Date(meus[0].QuandoISO), 'dd/MM') + ' a ' +
+        fmt(new Date(meus[meus.length - 1].QuandoISO), 'dd/MM')
+      : '—';
+    return '<tr><td class="mes">' + fmt(paraData(p.DataShow), 'dd/MM') + '</td>' +
+      '<td class="campanha">' + p.Banda + '</td>' +
+      '<td>' + quando + '</td>' +
+      '<td>' + (nf ? nf + ' feed' : '') + (nf && ns ? ' + ' : '') +
+        (ns ? ns + ' stories' : '') + (!nf && !ns ? 'sem artes' : '') + '</td>' +
+      '<td class="total">' + (nf + ns) + '</td></tr>';
+  }).join('');
+
+  var resumo =
+    '<section class="folha clara">' +
+    '<p class="etiqueta v">Resumo</p>' +
+    '<h2>O que foi entregue<span class="periodo">' +
+      fmt(de, 'dd/MM') + ' a ' + fmt(ate, 'dd/MM/yyyy') + '</span></h2>' +
+    '<table><thead><tr><th>Show</th><th>Banda ou artista</th><th>Publicações</th>' +
+      '<th>Peças</th><th class="total">Total</th></tr></thead><tbody>' +
+      (linhasResumo || '<tr><td colspan="5">Nenhum show neste período.</td></tr>') +
+      '<tr class="soma"><td></td><td>Total</td><td></td>' +
+      '<td>' + contas.feed + ' feed · ' + contas.story + ' stories</td>' +
+      '<td class="total">' + pecas + '</td></tr>' +
+    '</tbody></table>' +
+    '<div class="colunas">' +
+    '<div><h3>Como foi feito</h3><p>Cada show entra pelo cadastro da banda, com ' +
+      'fotos e logotipo. O sistema trata as imagens, monta as seis peças — três ' +
+      'layouts, em feed (4:5) e story (9:16) — e escreve as legendas. Toda peça sai ' +
+      'com a logo oficial, couvert, endereço e @.</p></div>' +
+    '<div><h3>Agendamento</h3><p>' + contas.publicadas + ' publicações saíram no ' +
+      'período' + (contas.agendadas ? ' e ' + contas.agendadas + ' seguem na fila' : '') +
+      (contas.falhas ? '. ' + contas.falhas + ' falharam e foram registradas' : '') +
+      '. As peças são distribuídas entre o cadastro e o início do show, sem duas no ' +
+      'mesmo horário.</p></div>' +
+    '<div><h3>Identidade</h3><p>Vermelho Woodstock e tridente como base, fotos em ' +
+      'preto e branco de alto contraste, integradas ao fundo da arte. Cada show ' +
+      'sai nos três layouts do kit, sem perder a marca do bar.</p></div>' +
+    '</div>' +
+    rodape(1) + '</section>';
+
+  var paginas = progs.map(function (p, i) {
     var artes = {};
     try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
 
@@ -287,7 +375,8 @@ function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
         var dados = miniaturaEmbutida(artes[canal][opcao]);
         if (dados) {
           minis.push('<figure><img src="' + dados + '"><figcaption>' +
-            (canal === 'FEED' ? 'publicação' : 'story') + ' ' + opcao + '</figcaption></figure>');
+            (canal === 'FEED' ? 'feed' : 'story') + ' · opção ' + opcao +
+            '</figcaption></figure>');
         }
       });
     });
@@ -295,51 +384,153 @@ function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
     var meus = (porProg[String(p.ID)] || []).sort(function (x, y) {
       return String(x.QuandoISO) < String(y.QuandoISO) ? -1 : 1;
     });
-    var linhasPost = meus.map(function (a) {
-      return '<tr><td>' + fmt(new Date(a.QuandoISO), 'dd/MM HH:mm') + '</td><td>' +
-        (String(a.Canal) === 'FEED' ? 'publicação' : 'story') + ' ' + a.Opcao + '</td><td>' +
-        a.Situacao + '</td><td>' + String(a.Erro || '') + '</td></tr>';
-    }).join('');
+    var tabela = meus.length
+      ? '<table class="posts"><thead><tr><th>Quando</th><th>Peça</th>' +
+        '<th>Situação</th><th>Observação</th></tr></thead><tbody>' +
+        meus.map(function (a) {
+          return '<tr><td>' + fmt(new Date(a.QuandoISO), 'dd/MM HH:mm') + '</td><td>' +
+            (String(a.Canal) === 'FEED' ? 'feed' : 'story') + ' · ' + a.Opcao +
+            '</td><td class="s-' + a.Situacao + '">' + String(a.Situacao).toLowerCase() +
+            '</td><td>' + String(a.Erro || '—') + '</td></tr>';
+        }).join('') + '</tbody></table>'
+      : '<p class="nota">Nenhuma publicação agendada para este show.</p>';
 
-    return '<section>' +
-      '<h2>' + p.Banda + '</h2>' +
-      '<p class="sub">' + fmt(paraData(p.DataShow), 'dd/MM/yyyy') + ' · ' + p.DiaSemana +
-      ' · ' + horaTexto(p.HoraShow) + ' · ' + p.InstagramBanda +
-      ' · situação: ' + p.Situacao + '</p>' +
+    var nf = Object.keys(artes.FEED || {}).length;
+    var ns = Object.keys(artes.STORY || {}).length;
+
+    return '<section class="folha clara">' +
+      '<p class="etiqueta v">' + fmt(paraData(p.DataShow), 'dd/MM/yyyy') +
+        ' · show ' + (i + 1) + '</p>' +
+      '<div class="cabeca"><h2>' + p.Banda + '</h2>' +
+      '<div class="selos"><span><b>' + (nf + ns) + '</b> peças</span>' +
+      '<span><b>Formato</b> feed 1080×1350 · story 1080×1920</span></div></div>' +
+      '<p class="linhaFina">' + String(p.DiaSemana || '') + ' · show às ' +
+        horaTexto(p.HoraShow) + ' · ' + p.InstagramBanda +
+        ' · situação: ' + String(p.Situacao).toLowerCase().replace(/_/g, ' ') + '</p>' +
       (minis.length ? '<div class="artes">' + minis.join('') + '</div>'
-        : '<p class="sub">Sem artes guardadas.</p>') +
-      (linhasPost
-        ? '<table><tr><th>quando</th><th>peça</th><th>situação</th><th>erro</th></tr>' +
-          linhasPost + '</table>'
-        : '<p class="sub">Nenhuma publicação agendada.</p>') +
-      '</section>';
+        : '<p class="nota">As artes deste show não estão guardadas.</p>') +
+      tabela +
+      (p.Avisos ? '<p class="nota"><b>Avisos da produção:</b> ' + p.Avisos + '</p>' : '') +
+      rodape(i + 2) + '</section>';
   }).join('');
 
-  return '<!doctype html><html><head><meta charset="utf-8"><style>' +
-    'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:26px}' +
-    'h1{font-size:21px;margin:0 0 2px}h2{font-size:15px;margin:0 0 2px}' +
-    '.cab{border-bottom:2px solid #d6121c;padding-bottom:10px;margin-bottom:16px}' +
-    '.sub{color:#555;font-size:11px;margin:0 0 8px}' +
-    'section{page-break-inside:avoid;border-bottom:1px solid #ddd;padding:12px 0}' +
-    '.artes{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}' +
-    'figure{margin:0;width:' + LARGURA_MINIATURA + 'px}' +
-    'img{width:100%;border:1px solid #ccc}' +
-    'figcaption{font-size:10px;color:#666;text-align:center;padding-top:2px}' +
-    'table{border-collapse:collapse;width:100%;font-size:11px}' +
-    'th,td{border:1px solid #ddd;padding:4px 6px;text-align:left}' +
-    'th{background:#f3f3f3}' +
-    '</style></head><body>' +
-    '<div class="cab"><h1>Woodstock Rock Bar — relatório ' + faixa.nome + '</h1>' +
-    '<p class="sub">Shows de ' + fmt(de, 'dd/MM/yyyy') + ' a ' + fmt(ate, 'dd/MM/yyyy') +
-    ' · ' + progs.length + ' shows · ' + publicadas + ' publicações feitas' +
-    (falhas ? ' · ' + falhas + ' falharam' : '') +
-    ' · gerado em ' + fmt(new Date(), 'dd/MM/yyyy HH:mm') + '</p></div>' +
-    (blocos || '<p>Nenhum show neste período.</p>') +
-    '</body></html>';
+  return '<!doctype html><html><head><meta charset="utf-8">' +
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?' +
+    'family=Anton&family=Barlow+Semi+Condensed:wght@400;700&display=swap">' +
+    '<style>' + estiloDoRelatorio() +
+    '</style></head><body>' + capa + resumo + paginas + '</body></html>';
+}
+
+/**
+ * A logo do bar na capa, embutida no arquivo.
+ *
+ * Vem do endereço público, como as miniaturas. Se não vier — rede fora do ar, por
+ * exemplo —, entra o nome escrito no lugar: um relatório com a marca em texto ainda
+ * presta contas; um relatório que não abre por falta de uma imagem, não.
+ */
+function marcaDaCapa(progs) {
+  // O endereço público não está guardado em lugar nenhum do Apps Script, mas as
+  // artes moram nele: basta cortar uma URL de arte no "/artes/" para chegar à raiz.
+  // Assim a capa funciona sem precisar configurar mais nada.
+  var base = '';
+  for (var i = 0; i < progs.length && !base; i++) {
+    var artes = {};
+    try { artes = JSON.parse(progs[i].Artes || '{}'); } catch (x) { artes = {}; }
+    ['FEED', 'STORY'].forEach(function (canal) {
+      Object.keys(artes[canal] || {}).forEach(function (op) {
+        var corte = String(artes[canal][op]).indexOf('/artes/');
+        if (!base && corte > 0) base = String(artes[canal][op]).slice(0, corte);
+      });
+    });
+  }
+  if (base) {
+    var dados = miniaturaEmbutida(base + '/marca/woodstock_vermelho.png');
+    if (dados) return '<img class="marca" src="' + dados + '">';
+  }
+  return '<div class="marca">Woodstock<i>Rock Bar</i></div>';
+}
+
+function rodape(pagina) {
+  return '<p class="rodape"><span>Woodstock Rock Bar · prestação de contas</span>' +
+    '<span>' + pagina + '</span></p>';
+}
+
+/**
+ * O estilo do relatório, no desenho da prestação de contas do bar.
+ *
+ * As famílias de tipos do documento original são Anton e Barlow Semi Condensed.
+ * Elas entram com alternativas listadas atrás: o conversor de PDF do Google nem
+ * sempre busca fonte na internet, e um relatório com a letra trocada ainda se lê —
+ * um relatório que não abre, não.
+ */
+function estiloDoRelatorio() {
+  var CREME = '#faf7f4';
+  var ESCURO = '#120303';
+  var TINTA = '#1c1713';
+  var VERMELHO = '#d6121c';
+  var SALMAO = '#ff6b5e';
+  var TITULO = "Anton, 'Arial Narrow', Impact, sans-serif";
+  var TEXTO = "'Barlow Semi Condensed', 'Arial Narrow', Arial, sans-serif";
+
+  return '@page{size:A4 landscape;margin:0}' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    'body{font-family:' + TEXTO + ';color:' + TINTA + ';background:' + CREME + '}' +
+    '.folha{width:297mm;height:209mm;padding:16mm 18mm;position:relative;' +
+      'page-break-after:always;overflow:hidden}' +
+    '.folha.clara{background:' + CREME + '}' +
+    '.capa{background:' + ESCURO + ';color:#fff}' +
+    'img.marca{width:58mm;display:block}' +
+    'div.marca{font-family:' + TITULO + ';font-size:40px;color:' + VERMELHO + ';line-height:1}' +
+    'div.marca i{display:block;font-family:' + TEXTO + ';font-style:italic;font-size:15px;' +
+      'letter-spacing:4px;margin-top:2px}' +
+    '.etiqueta{font-weight:700;font-size:11px;letter-spacing:4px;text-transform:uppercase;' +
+      'color:' + SALMAO + ';margin-top:34mm}' +
+    '.etiqueta.v{color:' + VERMELHO + ';margin-top:0}' +
+    '.capa h1{font-family:' + TITULO + ';font-size:62px;line-height:1.02;margin-top:6px;' +
+      'text-transform:uppercase}' +
+    '.capa h1 em{font-style:normal;color:' + VERMELHO + '}' +
+    '.numeros{display:flex;gap:10mm;position:absolute;left:18mm;right:18mm;bottom:28mm}' +
+    '.num{flex:1;border-top:2px solid ' + VERMELHO + ';padding-top:6px}' +
+    '.num b{display:block;font-family:' + TITULO + ';font-size:34px;line-height:1}' +
+    '.num span{font-size:11px;color:#e9dcd2}' +
+    '.capa .pe{position:absolute;left:18mm;bottom:16mm;font-size:10px;color:#b9a79b}' +
+    'h2{font-family:' + TITULO + ';font-size:34px;text-transform:uppercase;line-height:1.05;' +
+      'border-bottom:3px solid ' + VERMELHO + ';padding-bottom:5px;margin-bottom:8px}' +
+    'h2 .periodo{float:right;font-family:' + TEXTO + ';font-size:12px;color:#7a6f68;' +
+      'text-transform:none;font-weight:400;padding-top:16px}' +
+    '.cabeca{position:relative}' +
+    '.selos{position:absolute;right:0;top:4px;display:flex;gap:6px}' +
+    '.selos span{border:1px solid #ddd3cb;border-radius:4px;padding:4px 9px;font-size:10px}' +
+    '.selos b{color:' + VERMELHO + '}' +
+    '.linhaFina{font-size:11px;color:#6b615b;margin-bottom:8px}' +
+    'table{border-collapse:collapse;width:100%;font-size:10.5px;margin-top:6px}' +
+    'th{text-align:left;font-weight:700;font-size:9px;letter-spacing:2px;' +
+      'text-transform:uppercase;color:#8a7f78;border-bottom:1px solid #ddd3cb;padding:5px 6px}' +
+    'td{border-bottom:1px solid #ece4dd;padding:6px}' +
+    'td.mes{color:' + VERMELHO + ';font-weight:700}' +
+    'td.campanha{font-weight:700}' +
+    '.total{text-align:right;font-family:' + TITULO + ';font-size:16px}' +
+    'tr.soma td{border-top:2px solid ' + TINTA + ';border-bottom:none;font-weight:700}' +
+    '.colunas{display:flex;gap:10mm;margin-top:9mm}' +
+    '.colunas div{flex:1}' +
+    'h3{font-family:' + TITULO + ';font-size:15px;color:' + VERMELHO + ';' +
+      'text-transform:uppercase;margin-bottom:4px}' +
+    '.colunas p{font-size:10.5px;line-height:1.5}' +
+    '.artes{display:flex;flex-wrap:wrap;gap:5mm;margin:6mm 0}' +
+    '.artes figure{width:38mm}' +
+    '.artes img{width:100%;border:1px solid #ddd3cb;display:block}' +
+    '.artes figcaption{font-size:9px;color:#8a7f78;padding-top:3px}' +
+    '.posts td{font-size:10px}' +
+    '.s-PUBLICADO{color:#1d7a3c;font-weight:700}' +
+    '.s-FALHA{color:' + VERMELHO + ';font-weight:700}' +
+    '.nota{font-size:10px;color:#6b615b;margin-top:5mm}' +
+    '.rodape{position:absolute;left:18mm;right:18mm;bottom:10mm;display:flex;' +
+      'justify-content:space-between;font-size:9px;color:#9a8e86;' +
+      'border-top:1px solid #ece4dd;padding-top:5px}';
 }
 
 function painelReprovar(chave, id, motivo) { exigirChave(chave); return reprovarProgramacao(id, motivo); }
-function painelRefazer(chave, id) { exigirChave(chave); return refazerArtes(id); }
+function painelRefazer(chave, id, peca) { exigirChave(chave); return refazerArtes(id, peca); }
 function painelPausar(chave, id) { exigirChave(chave); return pausarProgramacao(id); }
 function painelRetomar(chave, id) { exigirChave(chave); return retomarProgramacao(id); }
 function painelCancelar(chave, id) { exigirChave(chave); return cancelarProgramacao(id); }

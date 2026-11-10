@@ -363,6 +363,48 @@ def juntar_integrantes(recortadas, destino, encosto=0.03):
     return destino, len(ajustadas)
 
 
+def tirar_pedacos_soltos(caminho, fracao=0.06):
+    """
+    Apaga do recorte os pedaços soltos, desligados de quem está na foto.
+
+    O caso que deu nome a isto: um microfone no pedestal, atrás do músico. O
+    recortador reconhece o microfone — ele é um objeto —, mas o pedestal se perde
+    no escuro do palco. Sobra o microfone boiando no ar, do lado da pessoa, e na
+    arte isso salta aos olhos.
+
+    A conta é de ilhas: cada pedaço desligado do resto é medido, e some quem for
+    pequeno demais perto do maior. O limite existe para NÃO apagar gente: numa foto
+    de dois músicos afastados, cada um é uma ilha, e a menor delas ainda é grande.
+    Microfone, baqueta solta e cantos de equipamento ficam em torno de 1% do maior;
+    uma pessoa, mesmo pequena no quadro, passa de 15%.
+
+    Devolve quantos pedaços foram apagados.
+    """
+    from scipy import ndimage
+
+    im = Image.open(caminho).convert("RGBA")
+    alfa = np.array(im.split()[3])
+    solido = alfa > 40
+    if not solido.any():
+        return 0
+
+    ilhas, quantas = ndimage.label(solido)
+    if quantas <= 1:
+        return 0
+
+    tamanhos = ndimage.sum(solido, ilhas, range(1, quantas + 1))
+    maior = tamanhos.max()
+    apagar = [i + 1 for i, t in enumerate(tamanhos) if t < maior * fracao]
+    if not apagar:
+        return 0
+
+    fora = np.isin(ilhas, apagar)
+    alfa[fora] = 0
+    im.putalpha(Image.fromarray(alfa, "L"))
+    im.save(caminho)
+    return len(apagar)
+
+
 def conferir_tem_conteudo(imagem):
     """Imagem quase toda transparente vira arte em branco — melhor recusar aqui."""
     visivel = (np.array(imagem.split()[3]) > 128).mean()
@@ -468,7 +510,7 @@ def em_resolucao_de_trabalho(caminho, lado=None):
     return im, dados.getvalue()
 
 
-def recortar_em_processo_proprio(entrada, saida):
+def recortar_em_processo_proprio(entrada, saida, modelo=None):
     """
     Recorta a foto num processo separado, e devolve (aviso, concordância).
 
@@ -490,9 +532,12 @@ def recortar_em_processo_proprio(entrada, saida):
     De quebra, uma foto que derrube o recortador deixa de derrubar a programação
     inteira: morre o processo filho, e as outras fotos seguem.
     """
+    ambiente = dict(os.environ)
+    if modelo:
+        ambiente["REMBG_MODELO"] = modelo
     pedido = subprocess.run(
         [sys.executable, os.path.abspath(__file__), "--recortar", entrada, saida],
-        capture_output=True, text=True)
+        capture_output=True, text=True, env=ambiente)
     for linha in (pedido.stdout or "").splitlines():
         if linha.startswith("RESULTADO "):
             dados = json.loads(linha[len("RESULTADO "):])
@@ -559,6 +604,14 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
         raise RuntimeError("o recorte saiu sem transparência — foto provavelmente ruim")
 
     anotar_memoria("recorte feito")
+
+    # Pedaço solto que o recortador achou mas que não se liga a ninguém — o
+    # microfone sem pedestal — sai antes de qualquer outra conta, senão ele entra
+    # na medida da área e atrapalha a conferência também.
+    soltos = tirar_pedacos_soltos(saida)
+    if soltos:
+        print("  tirei %d pedaço(s) solto(s) do recorte" % soltos, flush=True)
+
     principal = _mascara(saida)
     if principal.sum() < principal.size * 0.04:
         raise RuntimeError("sobrou quase nada da foto depois do recorte (%.1f%% da imagem)"
@@ -728,7 +781,47 @@ def recortar_logo(origem, destino, tratar_logo_py):
     return escolhido[0], medidas
 
 
-def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
+def decidiu_nao_recortar(foto, caminho):
+    """
+    Diz se esta foto entra inteira, já levando em conta o caminho da tentativa.
+
+    Na primeira tentativa vale só a leitura do fundo. Refazendo, a decisão pode ser
+    invertida de propósito — é a correção mais provável quando a arte saiu errada —
+    ou travada em "não recortar", que é o caminho que nunca produz silhueta ruim.
+    """
+    if caminho.get("nunca_recortar"):
+        return True
+    neutro = fundo_neutro(foto)[0]
+    return (not neutro) if caminho.get("inverter_decisao") else neutro
+
+
+def caminho_da_tentativa(numero):
+    """
+    O que fazer diferente quando a arte é refeita.
+
+    Repetir o mesmo cálculo devolve o mesmo resultado: o recorte é determinístico,
+    a mesma foto sai igual todas as vezes. Um "refazer" que repete não serviria para
+    nada. Então cada tentativa troca a decisão que tem mais chance de ser a culpada
+    pela arte ter saído errada — nesta ordem, porque é a ordem em que elas erram:
+
+      1. o jeito normal, decidindo sozinho se recorta;
+      2. INVERTE a decisão de recortar. É o erro mais comum: fundo que parecia
+         neutro e não era, ou o contrário;
+      3. recorta com outro recortador, que erra de forma diferente do primeiro;
+      4. usa a foto inteira, dissolvida, sem tentar recortar — o caminho que
+         nunca deixa silhueta errada, porque não faz silhueta nenhuma.
+
+    Da quinta em diante volta ao começo: já se esgotou o que dá para variar sem
+    inventar, e insistir seria enganar quem clicou.
+    """
+    return {
+        2: {"inverter_decisao": True},
+        3: {"inverter_decisao": False, "modelo": MODELO_RESGATE},
+        4: {"nunca_recortar": True},
+    }.get(int(numero or 1), {})
+
+
+def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
     bands = os.path.join(pasta_gerador, "bands")
     os.makedirs(bands, exist_ok=True)
     trabalho = os.path.join(pasta_entrada, "_trabalho")
@@ -747,7 +840,14 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
     if not fotos:
         raise RuntimeError("nenhuma foto chegou nesta programação")
 
+    caminho = caminho_da_tentativa(tentativa)
     avisos = []
+    if caminho:
+        avisos.append("refazendo pelo caminho %d: %s" % (tentativa, ", ".join(
+            {"inverter_decisao": "inverti a decisão de recortar",
+             "modelo": "troquei o recortador",
+             "nunca_recortar": "usei as fotos inteiras, sem recortar"}[k]
+            for k in caminho)))
     houve_montagem = False
     duvidosas = []
     recortadas = []
@@ -760,7 +860,7 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
                 conferir_tem_conteudo(pronta)
                 pronta.save(destino)
                 avisos.append("foto%d já veio recortada; usada direto" % (i + 1))
-            elif not juntar and fundo_neutro(foto)[0]:
+            elif not juntar and decidiu_nao_recortar(foto, caminho):
                 # Fundo neutro e a pessoa aparece sozinha nesta peça: não há o que
                 # separar. A foto entra inteira, no tamanho do espaço, tratada em
                 # P&B e com as bordas dissolvidas no fundo da arte. Recortar aqui
@@ -772,12 +872,13 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
                 inteira.save(destino)
                 inteiras.add(destino)
                 medida = fundo_neutro(foto)[1]
-                avisos.append("foto%d tem fundo neutro (%s); usei inteira, sem "
-                              "recortar" % (i + 1, medida))
+                avisos.append("foto%d entrou inteira, sem recortar (%s)"
+                              % (i + 1, medida))
             else:
                 # Ou vai entrar numa montagem — e aí separar é obrigatório, senão
                 # as pessoas não encaixam lado a lado — ou o fundo atrapalha.
-                aviso, concordancia = recortar_em_processo_proprio(foto, destino)
+                aviso, concordancia = recortar_em_processo_proprio(
+                    foto, destino, caminho.get("modelo"))
                 if aviso:
                     avisos.append("foto%d: %s" % (i + 1, aviso))
                 if juntar:
@@ -928,7 +1029,11 @@ if __name__ == "__main__":
         sys.exit(0)
 
     entrada, gerador, ident = sys.argv[1], sys.argv[2], sys.argv[3]
-    resultado = preparar(entrada, gerador, ident, juntar="--juntar" in sys.argv)
+    _tentativa = 1
+    if "--tentativa" in sys.argv:
+        _tentativa = int(sys.argv[sys.argv.index("--tentativa") + 1])
+    resultado = preparar(entrada, gerador, ident, juntar="--juntar" in sys.argv,
+                         tentativa=_tentativa)
     destino = None
     if "--json" in sys.argv:
         destino = sys.argv[sys.argv.index("--json") + 1]

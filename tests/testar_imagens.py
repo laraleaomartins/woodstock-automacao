@@ -266,6 +266,46 @@ conferir(ocupa > 0.5,
          "e ocupa o espaço de verdade (%.0f%% da altura), em vez de encolher"
          % (ocupa * 100))
 
+print("\n• Refazer tenta um caminho diferente, não repete o mesmo")
+# O recorte é determinístico: a mesma foto sai igual todas as vezes. Um "refazer"
+# que repetisse o mesmo cálculo devolveria a mesma arte, e o botão seria mentira.
+caminhos = [pi.caminho_da_tentativa(n) for n in (1, 2, 3, 4)]
+conferir(caminhos[0] == {}, "a 1ª tentativa é o caminho normal")
+conferir(caminhos[1].get("inverter_decisao") is True,
+         "a 2ª inverte a decisão de recortar")
+conferir(bool(caminhos[2].get("modelo")), "a 3ª troca o recortador")
+conferir(caminhos[3].get("nunca_recortar") is True,
+         "a 4ª usa a foto inteira, sem recortar")
+conferir(len({str(c) for c in caminhos}) == 4, "os quatro caminhos são diferentes entre si")
+
+# E a decisão de recortar obedece ao caminho, não só à leitura do fundo.
+estudio = os.path.join(RAIZ, "tmp", "toka_final", "entrada", "foto1.jpg")
+if os.path.exists(estudio):
+    conferir(pi.decidiu_nao_recortar(estudio, {}) is True,
+             "no caminho normal, a foto de estúdio não é recortada")
+    conferir(pi.decidiu_nao_recortar(estudio, caminhos[1]) is False,
+             "no caminho que inverte, a mesma foto passa a ser recortada")
+
+print("\n• Pedaço solto sai do recorte, mas pessoa afastada fica")
+# O microfone no pedestal que o recortador acha, mas cujo pedestal se perde no
+# escuro: sobra o microfone boiando ao lado da pessoa, e na arte isso salta.
+# O que este teste guarda é o outro lado: numa foto de dois músicos afastados,
+# cada um é uma ilha separada, e apagar a menor seria apagar uma pessoa.
+tela = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
+d3 = ImageDraw.Draw(tela)
+d3.rectangle((60, 100, 240, 560), fill=(200, 200, 200, 255))    # pessoa grande
+d3.rectangle((330, 180, 450, 560), fill=(200, 200, 200, 255))   # pessoa menor, afastada
+d3.ellipse((500, 90, 530, 130), fill=(200, 200, 200, 255))      # microfone solto
+com_solto = os.path.join(tempfile.mkdtemp(), "solto.png")
+tela.save(com_solto)
+
+apagados = pi.tirar_pedacos_soltos(com_solto)
+depois = np.array(Image.open(com_solto).convert("RGBA").split()[3]) > 40
+conferir(apagados == 1, "apagou 1 pedaço solto (apagou %d)" % apagados)
+conferir(depois[300, 150], "a pessoa grande continua")
+conferir(depois[300, 390], "a pessoa menor, afastada, também continua")
+conferir(not depois[110, 515], "e o microfone solto sumiu")
+
 print("\n• Foto de fundo neutro não é recortada; foto de palco é")
 # Recorte existe para SEPARAR a pessoa do que está atrás. Numa foto de estúdio não
 # há o que separar, e recortar só troca um fundo que já combinava por uma silhueta
@@ -304,7 +344,7 @@ def recorte_falso(concordancia):
     usa de verdade. Trocar a função de dentro não adiantaria: ela roda noutro
     processo, onde nada que este teste mude chega.
     """
-    def fingido(entrada, saida):
+    def fingido(entrada, saida, modelo=None):
         Image.open(entrada).convert("RGBA").save(saida)
         return None, concordancia
     return fingido

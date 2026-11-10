@@ -350,12 +350,39 @@ function reprovarProgramacao(programacaoId, motivo) {
 }
 
 /** Manda produzir as artes de novo (depois de reprovar, por exemplo). */
-function refazerArtes(programacaoId) {
+/**
+ * Manda refazer as artes, tentando um caminho diferente do anterior.
+ *
+ * Repetir o mesmo cálculo devolveria a mesma arte: o recorte é determinístico. Por
+ * isso cada pedido de refazer anda um número, e a oficina usa esse número para
+ * trocar a decisão com mais chance de ter sido a culpada — inverter o recortar,
+ * trocar de recortador, usar a foto inteira. Sem isso, o botão seria mentira.
+ *
+ * `peca` é opcional, no formato "FEED:A". Serve para registrar QUAL arte
+ * desagradou; as seis são refeitas de todo modo, porque saem todas do mesmo
+ * tratamento das fotos — não existe refazer uma sem refazer o tratamento.
+ */
+function refazerArtes(programacaoId, peca) {
+  var prog = acharProgramacao(programacaoId);
+  if (!prog) throw new Error('Programação não encontrada.');
+
+  var artes = {};
+  try { artes = JSON.parse(prog.Artes || '{}'); } catch (x) { artes = {}; }
+  var recebidos = artes.recebidos || {};
+  var tentativa = Number(recebidos.tentativa || 1) + 1;
+  recebidos.tentativa = tentativa;
+  if (peca) recebidos.ultimaPecaRuim = String(peca);
+
+  gravarCampos(ABA.PROGRAMACOES, prog._linha,
+    { Artes: JSON.stringify({ recebidos: recebidos }) });
+
   cancelarAgendamentos(programacaoId, SIT_POST.CANCELADO);
   mudarSituacao(programacaoId, SIT.AGUARDANDO_ARTES, '');
-  registrar('INFO', programacaoId, 'REFAZER_ARTES', 'Voltou para a fila de produção.');
+  registrar('INFO', programacaoId, 'REFAZER_ARTES',
+    'Tentativa ' + tentativa + (peca ? ' (pedido a partir da ' + peca + ')' : '') +
+    '; voltou para a fila.');
   cutucarGithub();
-  return true;
+  return tentativa;
 }
 
 function listaDeHorarios(postos) {

@@ -96,6 +96,9 @@ async function produzir(job) {
   const argumentos = [path.join(AQUI, 'preparar_imagens.py'), entrada, GERADOR, job.id,
     '--json', jsonImagens];
   if (job.juntar) argumentos.push('--juntar');
+  // Refazer tem de tentar um caminho diferente: o recorte é determinístico, e
+  // repetir a mesma conta devolveria a mesma arte.
+  if (job.tentativa && job.tentativa > 1) argumentos.push('--tentativa', String(job.tentativa));
   rodar(PYTHON, argumentos, { stdio: ['ignore', 'inherit', 'inherit'] });
   const imagens = JSON.parse(fs.readFileSync(jsonImagens, 'utf8'));
   const avisos = imagens._avisos || [];
