@@ -184,7 +184,7 @@ function fecharProgramacoesConcluidas() {
  * Chamado quando o GitHub termina as artes. Daqui em diante é tudo decidido pelo
  * modo de operação da programação.
  */
-function registrarArtesProntas(programacaoId, artes, avisos) {
+function registrarArtesProntas(programacaoId, artes, avisos, porFoto) {
   return comTrava('artesProntas', function () {
     var prog = acharProgramacao(programacaoId);
     if (!prog) throw new Error('Programação não encontrada: ' + programacaoId);
@@ -208,6 +208,10 @@ function registrarArtesProntas(programacaoId, artes, avisos) {
       Erro: ''
     });
     registrar('INFO', prog.ID, 'ARTES_PRONTAS', totalFeed + ' de feed e ' + totalStory + ' de story.');
+
+    // O que a produção descobriu sobre cada foto, para o painel mostrar ao lado da
+    // imagem correspondente em vez de num recado geral.
+    anotarEstadoDasFotos(acharProgramacao(programacaoId), porFoto);
 
     var progAtual = acharProgramacao(programacaoId);
     var modo = String(prog.Modo || cfg('MODO_OPERACAO')).toUpperCase();

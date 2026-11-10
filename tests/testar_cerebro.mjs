@@ -589,6 +589,102 @@ teste('Produção travada volta para a fila, e o segundo tranco avisa por e-mail
     'e desta vez avisou por e-mail, em vez de tentar calado para sempre');
 });
 
+const fotoEditada = (nome = 'editada.png') => ({
+  nome, tipo: 'image/png',
+  conteudo: Buffer.from('imagem-editada-' + nome).toString('base64')
+});
+
+teste('Cada foto tem seu próprio estado, e o erro aponta a culpada', (ctx, estado) => {
+  // O defeito que isto guarda: o painel dizia só que "houve um erro no
+  // processamento". Com quatro fotos enviadas, quem precisa consertar tinha de
+  // adivinhar qual delas era a do problema.
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Quatro Fotos', data: iso(emDias(9)), fotos: 4 }));
+  ctx.registrarArtesProntas(id, artesFalsas(id), [], [
+    { indice: 0, estado: 'ok', motivo: 'o fundo é limpo, usei a foto inteira' },
+    { indice: 1, estado: 'erro', motivo: 'não dá para separar a pessoa do fundo' },
+    { indice: 2, estado: 'ok', motivo: 'recortei do fundo' },
+    { indice: 3, estado: 'duvidoso', motivo: 'o recorte não ficou confiável' }
+  ]);
+
+  const fotos = ctx.painelFotos('chave-de-teste', id);
+  conferir(fotos.length === 4, `o painel lista as 4 fotos (listou ${fotos.length})`);
+  conferir(fotos[1].estado === 'erro', 'a foto 2 está marcada como a do problema');
+  conferir(fotos[1].motivo.includes('separar a pessoa do fundo'),
+    'com o motivo em português: ' + fotos[1].motivo);
+  conferir(fotos[0].estado === 'ok' && fotos[2].estado === 'ok',
+    'e as que deram certo NÃO foram marcadas como problemáticas');
+  conferir(fotos.every((f) => f.previaOriginal), 'todas têm prévia para olhar');
+});
+
+teste('Foto substituída à mão entra na arte, e a original não se perde', (ctx, estado) => {
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Trocada', data: iso(emDias(9)), fotos: 3 }));
+  const antes = ctx.painelFotos('chave-de-teste', id);
+  const idOriginal = antes[1].idOriginal;
+
+  const depois = ctx.painelSubstituirFoto('chave-de-teste', id, 1, fotoEditada());
+  conferir(depois[1].usando === 'editada', 'a foto 2 passou a usar a versão editada');
+  conferir(depois[1].idOriginal === idOriginal,
+    'e a original continua guardada, com o mesmo arquivo');
+  conferir(depois[0].usando === 'original' && depois[2].usando === 'original',
+    'trocar uma foto não encostou nas outras');
+
+  // A regra de prioridade só vale se a oficina receber a editada.
+  ctx.mudarSituacao(id, 'AGUARDANDO_ARTES', '');
+  const job = ctx.jobsDeArtes(5).filter((j) => j.id === id)[0];
+  conferir(job.fotos[1].manual === true, 'a oficina recebe a versão editada da foto 2');
+  conferir(job.fotos[0].manual === false, 'e a original das demais');
+  conferir(job.fotos[1].id !== idOriginal, 'o arquivo mandado é mesmo o editado');
+});
+
+teste('Produzir de novo não desfaz uma edição feita à mão', (ctx, estado) => {
+  // Seria jogar fora o trabalho de quem editou, justamente quando o sistema está
+  // tentando de novo porque errou antes.
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Insiste', data: iso(emDias(9)), fotos: 2 }));
+  ctx.painelSubstituirFoto('chave-de-teste', id, 0, fotoEditada('mao.png'));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  ctx.painelRefazer('chave-de-teste', id, '');
+
+  const fotos = ctx.painelFotos('chave-de-teste', id);
+  conferir(fotos[0].usando === 'editada', 'depois de refazer, a editada continua valendo');
+  const job = ctx.jobsDeArtes(5).filter((j) => j.id === id)[0];
+  conferir(job && job.fotos[0].manual === true, 'e é ela que vai para a produção');
+});
+
+teste('Dá para desfazer a troca e voltar à foto da banda', (ctx, estado) => {
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Desfaz', data: iso(emDias(9)), fotos: 2 }));
+  ctx.painelSubstituirFoto('chave-de-teste', id, 0, fotoEditada());
+  const voltou = ctx.painelRestaurarFoto('chave-de-teste', id, 0);
+  conferir(voltou[0].usando === 'original', 'a foto 1 voltou a ser a original');
+
+  const historico = ctx.painelHistoricoDeFotos('chave-de-teste', id);
+  conferir(historico.length === 2, `as 2 mexidas ficaram no histórico (${historico.length})`);
+  conferir(historico[0].acao.includes('original'), 'a mais recente em cima: ' + historico[0].acao);
+});
+
+teste('Arquivo inválido é recusado sem perder o que já existia', (ctx, estado) => {
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Invalida', data: iso(emDias(9)), fotos: 2 }));
+  ctx.painelSubstituirFoto('chave-de-teste', id, 0, fotoEditada('boa.png'));
+
+  const tentar = (arquivo) => {
+    try { ctx.painelSubstituirFoto('chave-de-teste', id, 1, arquivo); return null; }
+    catch (e) { return e.message; }
+  };
+  const naoImagem = tentar({ nome: 'x.pdf', tipo: 'application/pdf', conteudo: 'eA==' });
+  conferir(naoImagem && naoImagem.includes('não é uma imagem'),
+    'arquivo que não é imagem é recusado: ' + naoImagem);
+  const vazio = tentar({ nome: 'v.png', tipo: 'image/png', conteudo: '' });
+  conferir(vazio && vazio.includes('vazio'), 'arquivo vazio é recusado: ' + vazio);
+
+  const fotos = ctx.painelFotos('chave-de-teste', id);
+  conferir(fotos[0].usando === 'editada',
+    'e a edição que já existia continua lá, intacta');
+});
+
 teste('Shows diferentes não recebem a mesma frase de abertura', (ctx, estado) => {
   // O defeito: as nove frases de abertura estavam escritas, mas a escolha usava o
   // número do layout — o A pegava sempre a primeira, o B sempre a segunda, o C

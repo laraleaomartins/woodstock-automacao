@@ -38,6 +38,25 @@
     text-transform:uppercase;letter-spacing:.6px}
   .ate{color:var(--fraco);font-size:12px}
   button.b.mini{padding:4px 9px;line-height:1}
+  /* As fotos que a banda enviou. Ficam acima das artes de propósito: quando uma
+     arte sai ruim, é aqui que se descobre qual foto consertar. */
+  .fotos{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .foto{width:150px;border:1px solid var(--borda);border-radius:9px;overflow:hidden;
+    background:#000;display:flex;flex-direction:column}
+  .foto img{width:100%;height:116px;object-fit:cover;display:block;background:#111}
+  .foto .corpo{padding:7px 8px;display:flex;flex-direction:column;gap:5px}
+  .foto .nome{font-size:11px;color:var(--fraco);word-break:break-all}
+  .foto .estado{font-size:10px;letter-spacing:.5px;text-transform:uppercase;
+    border-radius:4px;padding:2px 6px;align-self:flex-start}
+  .e-ok{background:#0e2a16;color:#7ee29a;border:1px solid #1d5c33}
+  .e-erro{background:#2e0d10;color:#ff9aa2;border:1px solid #7a2129}
+  .e-duvidoso{background:#3a2a00;color:#ffd96b;border:1px solid #7a5c00}
+  .e-editada{background:#102236;color:#8fc4ff;border:1px solid #28527f}
+  .e-sem_informacao{background:#1a1a1a;color:var(--fraco);border:1px solid var(--borda)}
+  .foto .motivo{font-size:11px;color:#cfcfcf;line-height:1.35}
+  .foto .acoesFoto{display:flex;flex-wrap:wrap;gap:4px}
+  .foto .acoesFoto button{font-size:10px;padding:3px 7px}
+  .usando{font-size:10px;color:var(--fraco)}
   .artes .refaz{display:block;width:100%;margin-top:4px;font-size:11px;padding:3px 0}
   .filtros input[type=search]{width:230px;background:#000;color:var(--texto);
     border:1px solid var(--borda);border-radius:7px;padding:8px 12px;font-size:13px}
@@ -250,6 +269,31 @@ function desenharProgramacoes(){
                'onclick="refazerUma(\''+p.id+'\',\''+x.k+'\')">refazer</button>' +
              '</figure>'; }).join('') + '</div>' : '';
 
+    // A galeria das FOTOS ENVIADAS, antes das artes. Cada uma com o que o
+    // tratamento descobriu dela, e com o que dá para fazer: baixar a original,
+    // mandar uma versão editada, ou desfazer a troca.
+    var fotos = (p.fotos || []).length ? '<div class="meta" style="margin-top:14px">' +
+      'Fotos enviadas pela banda</div><div class="fotos">' +
+      p.fotos.map(function(f){
+        var rotulo = {ok:'processada', erro:'precisa de conserto',
+                      duvidoso:'resultado duvidoso', editada:'editada por você',
+                      sem_informacao:'ainda não processada'}[f.estado] || f.estado;
+        var prev = f.editada ? f.editada.previa : f.previaOriginal;
+        return '<div class="foto">' +
+          '<img src="'+esc(prev)+'" loading="lazy" alt="'+esc(f.nome)+'">' +
+          '<div class="corpo">' +
+          '<span class="estado e-'+esc(f.estado)+'">'+esc(rotulo)+'</span>' +
+          '<span class="nome">'+esc(f.nome)+'</span>' +
+          (f.motivo ? '<span class="motivo">'+esc(f.motivo)+'</span>' : '') +
+          (f.editada ? '<span class="usando">usando a editada de '+esc(f.editada.quando)+'</span>' : '') +
+          '<div class="acoesFoto">' +
+          '<button class="b mini" onclick="baixarFoto(\''+p.id+'\','+f.indice+',\'original\')">original</button>' +
+          (f.editada ? '<button class="b mini" onclick="baixarFoto(\''+p.id+'\','+f.indice+',\'editada\')">editada</button>' : '') +
+          '<button class="b mini" onclick="trocarFoto(\''+p.id+'\','+f.indice+')">substituir</button>' +
+          (f.editada ? '<button class="b mini" onclick="desfazerFoto(\''+p.id+'\','+f.indice+')">desfazer</button>' : '') +
+          '</div></div></div>';
+      }).join('') + '</div>' : '';
+
     var acoes = [];
     if (p.situacao === 'AGUARDANDO_APROVACAO'){
       acoes.push('<button class="b forte" onclick="aprovarMarcadas(\''+p.id+'\')">Aprovar as marcadas</button>');
@@ -280,7 +324,7 @@ function desenharProgramacoes(){
       '<span class="etq e-'+esc(p.situacao)+'">'+esc(p.situacao.replace(/_/g,' '))+'</span></div>' +
       (p.erro ? '<div class="meta" style="color:#ff8d95;margin-top:8px">'+esc(p.erro)+'</div>' : '') +
       (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +
-      galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
+      fotos + galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
   }).join('');
 }
 
@@ -394,6 +438,127 @@ function verLegendas(id){
     '</div>';
   document.getElementById('janelaCorpo').innerHTML = html;
   document.getElementById('janela').showModal();
+}
+
+// ------------------------------------------------- fotos enviadas pela banda
+
+function baixarFoto(id, indice, qual){
+  recado('Buscando a foto…', 20000);
+  google.script.run
+    .withSuccessHandler(function(a){ baixarBase64(a); recado('Baixada: ' + a.nome, 5000); })
+    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .painelBaixarFoto(CHAVE, id, indice, qual);
+}
+
+function baixarFotosTodas(id){
+  recado('Juntando as fotos…', 25000);
+  google.script.run
+    .withSuccessHandler(function(z){
+      baixarBase64(z);
+      recado(z.quantas + ' arquivo(s) baixado(s).', 6000);
+    })
+    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .painelBaixarFotosTodas(CHAVE, id);
+}
+
+// O arquivo é lido no navegador e conferido ANTES de subir: tipo, tamanho e
+// tamanho em pixels. Assim o erro aparece na hora, e não depois de uma espera.
+var LADO_MINIMO = 600;
+var MB_MAXIMO = 15;
+
+function trocarFoto(id, indice){
+  var campo = document.createElement('input');
+  campo.type = 'file';
+  campo.accept = 'image/png,image/jpeg';
+  campo.onchange = function(){
+    var arquivo = campo.files && campo.files[0];
+    if (!arquivo) return;
+    if (arquivo.size > MB_MAXIMO * 1048576){
+      recado('A imagem tem ' + Math.round(arquivo.size / 1048576) +
+             ' MB e o limite é ' + MB_MAXIMO + ' MB.', 9000);
+      return;
+    }
+    var leitor = new FileReader();
+    leitor.onload = function(){
+      var img = new Image();
+      img.onload = function(){
+        if (Math.min(img.width, img.height) < LADO_MINIMO){
+          recado('A imagem tem ' + img.width + '×' + img.height + ' pixels. ' +
+                 'Abaixo de ' + LADO_MINIMO + ' ela sai borrada na arte.', 10000);
+          return;
+        }
+        confirmarTroca(id, indice, arquivo, leitor.result, img.width, img.height);
+      };
+      img.onerror = function(){ recado('Não consegui abrir esse arquivo como imagem.', 9000); };
+      img.src = leitor.result;
+    };
+    leitor.onerror = function(){ recado('Não consegui ler o arquivo.', 9000); };
+    leitor.readAsDataURL(arquivo);
+  };
+  campo.click();
+}
+
+// Ver antes de confirmar: a troca muda o que vai para a arte, e vale conferir que
+// é mesmo a imagem certa — sobretudo quando se editou várias.
+function confirmarTroca(id, indice, arquivo, dados, largura, altura){
+  document.getElementById('janelaCorpo').innerHTML =
+    '<h3 style="margin-bottom:4px">Substituir a foto ' + (indice + 1) + '</h3>' +
+    '<p class="meta" style="margin-bottom:10px">' + esc(arquivo.name) + ' · ' +
+      largura + '×' + altura + ' · ' + Math.round(arquivo.size / 1024) + ' KB</p>' +
+    '<img src="' + dados + '" style="max-width:100%;max-height:50vh;border:1px solid var(--borda);border-radius:8px">' +
+    '<p class="meta" style="margin-top:10px">A foto que a banda enviou continua ' +
+      'guardada e pode ser recuperada quando você quiser.</p>' +
+    '<div class="acoes" style="margin-top:12px">' +
+    '<button class="b forte" id="confirmaTroca">Usar esta imagem</button>' +
+    '<button class="b" onclick="fecharJanela()">Cancelar</button></div>';
+  document.getElementById('janela').showModal();
+
+  document.getElementById('confirmaTroca').onclick = function(){
+    this.disabled = true;
+    this.textContent = 'Enviando…';
+    google.script.run
+      .withSuccessHandler(function(){
+        fecharJanela();
+        recado('Foto substituída. Use "Refazer todas" para a arte sair com ela.', 9000);
+        carregar();
+      })
+      .withFailureHandler(function(e){
+        fecharJanela();
+        recado('Não consegui substituir: ' + e.message, 9000);
+      })
+      .painelSubstituirFoto(CHAVE, id, indice, {
+        nome: arquivo.name, tipo: arquivo.type,
+        conteudo: String(dados).split(',')[1]
+      });
+  };
+}
+
+function desfazerFoto(id, indice){
+  if (!confirm('Voltar a usar a foto que a banda enviou nesta posição?')) return;
+  chamar('painelRestaurarFoto', [id, indice]);
+}
+
+function verHistoricoFotos(id){
+  google.script.run
+    .withSuccessHandler(function(linhas){
+      var html = '<h3 style="margin-bottom:10px">Histórico das fotos</h3>';
+      html += linhas.length
+        ? '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+          linhas.map(function(l){
+            return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--borda)">' +
+              esc(l.quando) + '</td><td style="padding:6px 8px;border-bottom:1px solid var(--borda)">foto ' +
+              l.foto + '</td><td style="padding:6px 8px;border-bottom:1px solid var(--borda)">' +
+              esc(l.acao) + '</td><td style="padding:6px 8px;border-bottom:1px solid var(--borda);color:var(--fraco)">' +
+              esc(l.de) + ' → ' + esc(l.para) + '</td></tr>';
+          }).join('') + '</table>'
+        : '<p class="meta">Nenhuma foto foi trocada nesta programação.</p>';
+      html += '<div class="acoes" style="margin-top:12px">' +
+        '<button class="b" onclick="fecharJanela()">Fechar</button></div>';
+      document.getElementById('janelaCorpo').innerHTML = html;
+      document.getElementById('janela').showModal();
+    })
+    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .painelHistoricoDeFotos(CHAVE, id);
 }
 
 function fecharJanela(){ document.getElementById('janela').close(); }

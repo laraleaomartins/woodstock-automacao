@@ -138,7 +138,11 @@ async function produzir(job) {
   const imagens = JSON.parse(fs.readFileSync(jsonImagens, 'utf8'));
   const avisos = imagens._avisos || [];
   avisos.forEach((a) => console.log(`  aviso: ${a}`));
+  // O que aconteceu com cada foto, para o painel apontar qual precisa de conserto
+  // em vez de dizer só que houve um erro.
+  const porFoto = imagens._fotos || [];
   delete imagens._avisos;
+  delete imagens._fotos;
 
   const show = {
     slug: job.id,
@@ -169,7 +173,7 @@ async function produzir(job) {
   const total = Object.keys(artes.FEED).length + Object.keys(artes.STORY).length;
   if (total === 0) throw new Error('o gerador não produziu nenhuma peça');
   console.log(`  ${total} peças prontas`);
-  return { artes, avisos };
+  return { artes, avisos, porFoto };
 }
 
 function publicarNoRepositorio(mensagem) {
@@ -256,9 +260,9 @@ async function principal() {
       : 'Atenção: o GitHub Pages ainda não respondeu; as artes podem demorar a aparecer.');
   }
 
-  for (const { job, artes, avisos } of prontos) {
+  for (const { job, artes, avisos, porFoto } of prontos) {
     try {
-      await apiPost({ acao: 'artes_prontas', id: job.id, artes, avisos });
+      await apiPost({ acao: 'artes_prontas', id: job.id, artes, avisos, fotos: porFoto });
       console.log(`  ${job.id}: entregue ao Apps Script.`);
     } catch (e) {
       console.error(`  ${job.id}: as artes ficaram prontas mas a entrega falhou: ${e.message}`);

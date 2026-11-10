@@ -1060,6 +1060,14 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
     duvidosas = []
     recortadas = []
     inteiras = set()     # as que entram sem recorte, dissolvidas no fundo
+
+    # O que aconteceu com CADA foto, para o painel poder apontar a culpada em vez
+    # de dizer "houve um erro no processamento". Sem isto, quem precisa consertar
+    # tem de adivinhar qual das quatro fotos é a do problema.
+    por_foto = []
+
+    def anotar(indice, estado, motivo=""):
+        por_foto.append({"indice": indice, "estado": estado, "motivo": motivo})
     for i, foto in enumerate(fotos):
         destino = os.path.join(trabalho, "cortada%d.png" % (i + 1))
         try:
@@ -1068,6 +1076,7 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
                 conferir_tem_conteudo(pronta)
                 pronta.save(destino)
                 avisos.append("foto%d já veio recortada; usada direto" % (i + 1))
+                anotar(i, "ok", "veio já recortada, com fundo transparente; usei direto")
             elif not juntar and decidiu_nao_recortar(foto, caminho):
                 # Fundo neutro e a pessoa aparece sozinha nesta peça: não há o que
                 # separar. A foto entra inteira, no tamanho do espaço, tratada em
@@ -1082,6 +1091,8 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
                 medida = fundo_neutro(foto)[1]
                 avisos.append("foto%d entrou inteira, sem recortar (%s)"
                               % (i + 1, medida))
+                anotar(i, "ok", "o fundo é limpo, então usei a foto inteira, "
+                                "sem recortar")
             else:
                 # Ou vai entrar numa montagem — e aí separar é obrigatório, senão
                 # as pessoas não encaixam lado a lado — ou o fundo atrapalha.
@@ -1092,6 +1103,10 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
                 if juntar:
                     if concordancia < CONCORDANCIA_MONTAGEM:
                         duvidosas.append(i + 1)
+                        anotar(i, "erro", "não dá para separar a pessoa do fundo "
+                               "com segurança, e numa banda montada isso apareceria")
+                    else:
+                        anotar(i, "ok", "recortei do fundo para montar a banda")
                 elif concordancia < CONCORDANCIA_RESGATE:
                     # Rede de segurança: fora da montagem, recorte duvidoso não vai
                     # para a arte. A foto inteira, com o fundo dissolvido, é sempre
@@ -1102,6 +1117,10 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
                     avisos.append("foto%d: o recorte não ficou confiável, então usei "
                                   "a foto inteira com as bordas dissolvidas no fundo "
                                   "da arte" % (i + 1))
+                    anotar(i, "duvidoso", "o recorte do fundo não ficou confiável, "
+                           "então usei a foto inteira, dissolvida no fundo da arte")
+                else:
+                    anotar(i, "ok", "recortei do fundo")
             recortadas.append(destino)
         except Exception as e:
             # Recorte falhou. Se a foto tem conteúdo, ela não é descartada: entra
@@ -1119,8 +1138,11 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
                 inteiras.add(destino)
                 avisos.append("foto%d não pôde ser recortada (%s); entrou inteira, com "
                               "as bordas dissolvidas no fundo da arte" % (i + 1, e))
+                anotar(i, "duvidoso", "o recorte automático falhou nesta foto; usei "
+                       "ela inteira, dissolvida no fundo da arte")
             except Exception as vazia:
                 avisos.append("foto%d descartada: %s" % (i + 1, vazia))
+                anotar(i, "erro", "não deu para usar esta foto: %s" % vazia)
 
     if not recortadas:
         raise RuntimeError("nenhuma das fotos pôde ser usada; " + " | ".join(avisos))
@@ -1252,6 +1274,7 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
             avisos.append("logo descartada (o nome entra escrito na arte): %s" % e)
 
     saida["_avisos"] = avisos
+    saida["_fotos"] = por_foto
     return saida
 
 

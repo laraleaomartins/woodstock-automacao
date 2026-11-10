@@ -58,6 +58,10 @@ function painelCarregar(chave) {
       pastaUrl: p.PastaId ? 'https://drive.google.com/drive/folders/' + p.PastaId : '',
       recebidos: (artes.recebidos && artes.recebidos.fotos ? artes.recebidos.fotos.length : 0) +
         (artes.recebidos && artes.recebidos.logo ? 1 : 0),
+      // As fotos que a banda enviou, cada uma com o seu estado. O painel precisa
+      // delas junto com o resto para poder mostrar a foto ao lado do problema que
+      // ela teve, em vez de um recado geral.
+      fotos: fotosDaProgramacao(p),
       feed: artes.FEED || {},
       story: artes.STORY || {},
       legendas: legendas

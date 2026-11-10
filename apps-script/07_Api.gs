@@ -50,7 +50,8 @@ function doPost(e) {
   try {
     switch (corpo.acao) {
       case 'artes_prontas':
-        return json({ ok: true, resultado: registrarArtesProntas(corpo.id, corpo.artes, corpo.avisos) });
+        return json({ ok: true, resultado:
+          registrarArtesProntas(corpo.id, corpo.artes, corpo.avisos, corpo.fotos) });
       case 'falha_artes':
         return json({ ok: true, resultado: registrarFalhaDeArtes(corpo.id, corpo.erro) });
       case 'conectar_instagram':
@@ -76,6 +77,19 @@ function doPost(e) {
         // Cancela a programação inteira e tira as publicações dela da fila. Existe
         // para limpar inscrição de teste sem precisar abrir o painel.
         return json({ ok: true, resultado: cancelarProgramacao(corpo.id) });
+      case 'baixar_foto':
+        return json({ ok: true, arquivo:
+          painelBaixarFoto(corpo.chave, corpo.id, corpo.indice, corpo.qual) });
+      case 'fotos':
+        return json({ ok: true, fotos: painelFotos(corpo.chave, corpo.id) });
+      case 'substituir_foto':
+        return json({ ok: true, fotos:
+          painelSubstituirFoto(corpo.chave, corpo.id, corpo.indice, corpo.arquivo) });
+      case 'restaurar_foto':
+        return json({ ok: true, fotos:
+          painelRestaurarFoto(corpo.chave, corpo.id, corpo.indice) });
+      case 'historico_fotos':
+        return json({ ok: true, historico: painelHistoricoDeFotos(corpo.chave, corpo.id) });
       case 'destravar':
         return json({ ok: true, resultado: destravarProducao() });
       case 'recalcular':
@@ -146,7 +160,13 @@ function jobsDeArtes(limite) {
         mes: MESES[data.getMonth()],
         mesAbrev: MESES_ABREV[data.getMonth()],
         diaSemana: String(p.DiaSemana || DIAS_SEMANA[data.getDay()]),
-        fotos: (arquivos.fotos || []).map(function (f) { return { id: f.id, nome: f.nome }; }),
+        // Havendo versão editada à mão, é ELA que vai para a produção. Esta é a
+        // única linha que faz a regra de prioridade valer, e é por isso que
+        // produzir de novo não desfaz uma edição manual.
+        fotos: (arquivos.fotos || []).map(function (f) {
+          var vale = arquivoValidoDaFoto(f);
+          return { id: vale.id, nome: vale.nome, manual: vale.manual };
+        }),
         logo: arquivos.logo ? { id: arquivos.logo.id, nome: arquivos.logo.nome } : null,
         juntar: arquivos.juntar === true,
         couvert: String(arquivos.couvert || ''),
