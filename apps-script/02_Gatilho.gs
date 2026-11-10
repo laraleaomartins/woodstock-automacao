@@ -165,6 +165,12 @@ function guardarArquivos(destino, d) {
   if (d.logoArquivo) saida.logo = gravarArquivo(destino, d.logoArquivo, 'logo');
   // Quem se inscreveu disse se são integrantes separados para juntar numa foto só.
   saida.juntar = d.juntar === true;
+  // O couvert entra na arte; os perfis da colaboração, na hora de publicar. Os dois
+  // ficam aqui dentro de propósito: este pedaço é o único que o sistema carrega
+  // adiante quando as artes ficam prontas, e os colaboradores só são usados depois
+  // disso. Guardados em qualquer outro lugar, se perderiam no meio do caminho.
+  saida.couvert = String(d.couvert == null ? '' : d.couvert);
+  saida.colabs = [].concat(d.colabs || []).slice(0, 3);
   return saida;
 }
 

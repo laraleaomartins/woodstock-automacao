@@ -109,6 +109,7 @@ async function produzir(job) {
     weekday: job.diaSemana,
     mes: job.mes,
     mesAbrev: job.mesAbrev,
+    couvert: job.couvert || '',
     ...imagens
   };
   const arquivoShow = path.join(entrada, 'show.json');
@@ -177,7 +178,19 @@ async function principal() {
   fs.mkdirSync(TRABALHO, { recursive: true });
   fs.mkdirSync(PUBLICO, { recursive: true });
 
-  const { jobs } = await api('jobs', { limite: 3 });
+  // Uma programação por rodada, não três. O recorte com matting é lento de
+  // propósito — é ele que entrega a borda sem contorno — e uma banda pode mandar
+  // quatro fotos. Medido na bateria: quatro fotos levaram 650 segundos, quase 11
+  // minutos. A oficina do GitHub tem 25 no total, contando instalar o navegador,
+  // gerar as seis peças e publicar. Com mais de uma programação o pior caso
+  // estourava, e a rodada morria no meio, deixando programação marcada como
+  // "gerando artes" sem arte nenhuma — o pior dos mundos, porque ela não volta
+  // sozinha para a fila.
+  //
+  // Ninguém espera mais por isso: a rodada seguinte vem em 15 minutos, e o
+  // Apps Script empurra uma na hora assim que uma banda se inscreve. Duas bandas
+  // no mesmo minuto é o caso raro; a segunda sai no ciclo seguinte.
+  const { jobs } = await api('jobs', { limite: 1 });
   if (!jobs.length) {
     console.log('Nenhuma banda esperando arte.');
     return;

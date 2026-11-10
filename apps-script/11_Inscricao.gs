@@ -65,8 +65,60 @@ function normalizarInscricao(dados) {
     hora: paraHora(dados.hora || '20:00'),
     arquivos: fotos,
     logoArquivo: dados.logo ? blobDeEnvio(dados.logo, 'logo') : null,
-    juntar: dados.juntar === true
+    juntar: dados.juntar === true,
+    couvert: valorDeCouvert(dados.couvert),
+    colabs: perfisDeColaboracao(dados.colabs)
   };
+}
+
+/**
+ * Aceita o couvert do jeito que a pessoa escrever e devolve só o número.
+ *
+ * Quem preenche escreve "15", "R$ 15", "15,00" ou "20.00", e os quatro querem dizer
+ * a mesma coisa. Guardar o texto cru faria a arte sair com "R$ R$ 15". Em branco é
+ * resposta válida: nem todo show tem couvert, e nesse caso a arte sai sem a linha.
+ */
+function valorDeCouvert(bruto) {
+  var texto = String(bruto == null ? '' : bruto).replace(/[^0-9,.]/g, '').trim();
+  if (!texto) return '';
+
+  // Ponto é ambíguo: em "1.500" separa milhar, em "20.00" separa centavos. Vírgula
+  // nunca é ambígua aqui — quem escreve vírgula está escrevendo centavos. Então:
+  // havendo vírgula, ela manda e os pontos são milhar; não havendo, um ponto com
+  // dois dígitos depois é centavo, e qualquer outro é milhar. Sem esta distinção,
+  // "20.00" vira vinte mil reais na arte.
+  var normalizado;
+  if (texto.indexOf(',') >= 0) {
+    normalizado = texto.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d+\.\d{2}$/.test(texto)) {
+    normalizado = texto;
+  } else {
+    normalizado = texto.replace(/\./g, '');
+  }
+  var numero = Number(normalizado);
+  if (!isFinite(numero) || numero <= 0) return '';
+  // Sem centavos quando são zero: "R$15" é como a arte do kit escreve.
+  return numero % 1 === 0 ? String(Math.round(numero))
+    : numero.toFixed(2).replace('.', ',');
+}
+
+/**
+ * Os perfis que vão assinar a publicação junto com o bar.
+ *
+ * O Instagram aceita no máximo três, só em publicação de feed (story não aceita),
+ * e só perfil aberto. Nada disso dá para conferir daqui: o convite é mandado na
+ * hora de publicar, e quem aceita é a banda, pelo aplicativo dela.
+ */
+function perfisDeColaboracao(lista) {
+  var vistos = {};
+  return [].concat(lista || [])
+    .map(function (p) { return arrobaLimpa(p); })
+    .filter(function (p) {
+      if (!p || vistos[p]) return false;
+      vistos[p] = true;
+      return true;
+    })
+    .slice(0, 3);
 }
 
 function blobDeEnvio(arquivo, nomePadrao) {

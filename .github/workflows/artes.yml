@@ -60,6 +60,11 @@ jobs:
       # Os modelos de recorte somam centenas de MB. Guardar em cache evita baixar
       # tudo de novo a cada execução. O rembg guarda em uma pasta ou na outra,
       # dependendo da versão, então as duas entram.
+      #
+      # A chave muda sempre que a lista de modelos muda. Ela foi para v2 ao entrar
+      # o modelo de matting, que são mais 110 MB: o cache do GitHub só grava quando
+      # a chave é nova, então manter a chave antiga faria o modelo novo ser baixado
+      # de novo em toda execução, para sempre.
       - name: Cache dos modelos de recorte
         if: steps.fila.outputs.tem == 'sim'
         uses: actions/cache@v4
@@ -67,7 +72,7 @@ jobs:
           path: |
             ~/.u2net
             ~/.rembg
-          key: rembg-birefnet-u2net-isnet-v1
+          key: rembg-birefnet-u2net-isnet-vitmatte-v2
 
       - name: Cache do navegador do gerador
         if: steps.fila.outputs.tem == 'sim'
@@ -80,7 +85,11 @@ jobs:
         if: steps.fila.outputs.tem == 'sim'
         run: |
           python -m pip install --quiet --upgrade pip
-          python -m pip install --quiet "rembg[cpu]" pillow numpy
+          # scipy entra escrito, e não de carona: a preparação das imagens usa o
+          # scipy.ndimage para esfumar borda e para medir buraco no meio de uma
+          # logo. Ele vinha junto como dependência do rembg, o que é uma corda que
+          # alguém pode cortar numa versão nova sem avisar.
+          python -m pip install --quiet "rembg[cpu]" pillow numpy scipy
           npm --prefix gerador install --no-audit --no-fund
           npm --prefix gerador exec -- playwright install --with-deps chromium
 

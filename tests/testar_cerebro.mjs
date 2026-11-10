@@ -112,7 +112,11 @@ teste('Modo com aprovação: artes prontas não agendam nada sozinhas', (ctx, es
   conferir(prog.Situacao === 'AGUARDANDO_APROVACAO', 'ficou esperando aprovação');
   conferir(ctx.linhas('AGENDAMENTOS').length === 0, 'nenhuma publicação foi agendada');
   conferir(JSON.parse(prog.Legendas).A.includes('LORENZO BRUCE'), 'a legenda cita a banda');
-  conferir(JSON.parse(prog.Legendas).A.includes('R$15'), 'a legenda traz o couvert real');
+  // Sem couvert informado, a legenda não anuncia couvert nenhum. Antes havia um
+  // "R$15" escrito fixo aqui, que anunciava entrada paga em show que podia ser de
+  // graça — e quem lesse acreditaria na legenda.
+  conferir(!JSON.parse(prog.Legendas).A.includes('Couvert'),
+    'sem couvert informado, a legenda não inventa um valor');
   conferir(JSON.parse(prog.Artes).recebidos.fotos.length === 2,
     'a lista dos arquivos recebidos foi preservada');
 
@@ -553,6 +557,56 @@ const inscricaoFalsa = (extra = {}) => ({
   fotos: [imagemFalsa('f1.jpg'), imagemFalsa('f2.png', 'image/png')],
   logo: imagemFalsa('logo.png', 'image/png'),
   ...extra
+});
+
+teste('O couvert vem do jeito que a pessoa escrever e vira número limpo', (ctx) => {
+  // Quem preenche escreve "15", "R$ 15", "15,00" ou "20.00" — os quatro querem dizer
+  // a mesma coisa. Guardar o texto cru faria a arte sair "COUVERT R$ R$ 15".
+  for (const [escrito, esperado] of [['15', '15'], ['R$ 15', '15'], ['15,00', '15'],
+                                     ['20.00', '20'], ['12,50', '12,50'],
+                                     ['', ''], ['abc', ''], ['0', '']]) {
+    const saiu = ctx.valorDeCouvert(escrito);
+    conferir(saiu === esperado,
+      `"${escrito}" virou "${saiu}"` + (saiu === esperado ? '' : ` (esperava "${esperado}")`));
+  }
+});
+
+teste('A colaboração aceita até 3 perfis, sem repetir e sem arroba', (ctx) => {
+  const limpos = ctx.perfisDeColaboracao(['@um', 'dois', '@um', '  @tres ', '@quatro', '']);
+  conferir(limpos.length === 3, `sobraram 3 perfis, não ${limpos.length}`);
+  conferir(limpos.join(',') === '@um,@dois,@tres',
+    'na ordem, sem repetido e normalizados: ' + limpos.join(','));
+  conferir(ctx.perfisDeColaboracao([]).length === 0, 'sem colaboração, lista vazia');
+});
+
+teste('Couvert e colaboradores sobrevivem até a hora de publicar', (ctx) => {
+  // O ponto frágil: a coluna das artes é reescrita quando as artes ficam prontas, e
+  // os colaboradores só são usados DEPOIS disso. Se não forem carregados adiante,
+  // somem no meio do caminho e a publicação sai sem colaboração, sem erro nenhum.
+  const r = ctx.receberInscricao(inscricaoFalsa({
+    couvert: 'R$ 25', colabs: ['@bandadaweb', '@baterista']
+  }));
+  conferir(r.ok === true, 'a inscrição com couvert e colaboração foi aceita');
+
+  const recebidos = JSON.parse(ctx.acharProgramacao(r.id).Artes).recebidos;
+  conferir(recebidos.couvert === '25', 'o couvert ficou guardado como "25"');
+  conferir((recebidos.colabs || []).length === 2, 'os 2 perfis ficaram guardados');
+
+  const job = ctx.jobsDeArtes(5).filter((j) => j.id === r.id)[0];
+  conferir(job && job.couvert === '25', 'o couvert chegou à oficina que desenha a arte');
+
+  ctx.registrarArtesProntas(r.id, {
+    FEED: { A: 'https://exemplo/a.jpg' }, STORY: { A: 'https://exemplo/as.jpg' }
+  }, []);
+  const depois = JSON.parse(ctx.acharProgramacao(r.id).Artes).recebidos || {};
+  conferir((depois.colabs || []).join(',') === '@bandadaweb,@baterista',
+    'e continuam lá depois das artes ficarem prontas');
+
+  // A legenda tem de anunciar o MESMO valor que a arte desenha. Se um for do show e
+  // o outro ficar escrito fixo, a peça diz um preço e o texto diz outro.
+  const legenda = JSON.parse(ctx.acharProgramacao(r.id).Legendas).A;
+  conferir(legenda.includes('Couvert R$25'),
+    'a legenda anuncia o mesmo couvert da arte');
 });
 
 teste('Inscrição pela página própria cria a programação igual ao formulário', (ctx, estado) => {

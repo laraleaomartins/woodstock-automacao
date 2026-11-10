@@ -1,16 +1,48 @@
 """
 Prepara as imagens de uma banda para o gerador do kit.
 
-Faz, em ordem, o que o passo a passo do kit manda fazer à mão:
-  1. recorta o fundo da foto (o kit faz isso pelo ChatGPT; aqui usa o rembg, que é
-     gratuito, roda local e não depende de navegador aberto);
-  2. trata em preto e branco com o tratar_foto.py do próprio kit;
-  3. cria a versão cortada até a cintura para as opções A e C, quando a foto é de
-     corpo inteiro;
-  4. tira o fundo da logo com o tratar_logo.py do kit, escolhendo sozinho o modo.
+Faz, em ordem:
+  1. decide se aquela foto precisa ser recortada (ver abaixo);
+  2. recorta, quando precisa (o kit faz isso à mão pelo ChatGPT; aqui usa o rembg,
+     que é gratuito, roda sozinho e não depende de navegador aberto);
+  3. trata em preto e branco com o tratar_foto.py do próprio kit;
+  4. entrega cada peça com a foto já na forma do espaço dela (ver composicao.py);
+  5. tira o fundo da logo com o tratar_logo.py do kit, escolhendo sozinho o modo.
 
 Se a foto já vier recortada com fundo transparente, pula o rembg e usa direto —
-é o que o kit manda fazer quando a cliente envia o PNG pronto.
+é o que o kit manda fazer quando a banda envia o PNG pronto.
+
+Quando recortar, e quando não
+-----------------------------
+Recorte não é um bem em si: ele existe para SEPARAR a pessoa do que está atrás
+dela. Se não há o que separar, recortar só pode piorar — gasta minutos, arrisca
+comer um pedaço de quem está na foto, e troca um fundo que já combinava com a arte
+por uma silhueta com cara de adesivo.
+
+A maioria das fotos que uma banda manda é de estúdio, com parede lisa ou degradê.
+Essas entram INTEIRAS: no tamanho do espaço, em preto e branco, com as bordas
+dissolvidas no fundo da arte. Medido no acervo do projeto, cinco de sete fotos
+estavam nesse caso.
+
+Recorta-se em dois casos, e só neles:
+  - quando a inscrição traz integrantes em fotos separadas, para montar uma banda
+    só. Aí separar é obrigatório: sem tirar o fundo de cada um, as pessoas não
+    encaixam lado a lado;
+  - quando o fundo atrapalha de verdade — palco com plateia, equipamento, luz
+    quebrada —, caso em que deixá-lo seria pior que recortar.
+
+Essa decisão já esteve errada duas vezes, nos dois sentidos, e as duas versões
+produziram arte ruim. Primeiro o sistema só recortava fundo bagunçado, mas colava a
+foto como um retângulo duro dentro do layout. Depois passou a recortar sempre, e aí
+fotos de estúdio — que não precisavam de nada — viravam silhueta recortada boiando
+num fundo escuro. O que faltava nas duas era a outra metade do trabalho: foto que
+não é recortada precisa ser INTEGRADA, e recorte precisa CASAR com o fundo em vez
+de parecer colado (composicao.integrar_retangulo e composicao.casar_com_fundo).
+
+A leitura do fundo acerta as fotos do acervo, mas é uma medida com margem estreita.
+Por isso há uma rede de segurança: fora da montagem, recorte que não sair confiável
+é descartado e a foto entra inteira. Errar para o lado de não recortar custa pouco;
+errar para o lado de publicar um recorte comido custa a arte.
 
 uso: python preparar_imagens.py <pasta_entrada> <pasta_gerador> <id> [--json saida.json]
 """
@@ -21,6 +53,9 @@ import sys
 
 import numpy as np
 from PIL import Image
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import composicao  # noqa: E402
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 
@@ -47,9 +82,48 @@ MODELO_CONFERENCIA = os.environ.get("REMBG_MODELO_CONFERENCIA", "u2net")
 MODELO_RESGATE = os.environ.get("REMBG_MODELO_RESGATE", "isnet-general-use")
 CONCORDANCIA_MINIMA = 0.88   # abaixo disso, junta o que cada modelo achou
 CONCORDANCIA_RESGATE = 0.60  # abaixo disso, juntar cola fundo: fica só o melhor
-# Acima deste ponto o fundo é considerado bagunçado e vale a pena recortar. Fundos
-# limpos medidos (estúdio com degradê, parede lisa) ficaram entre 0,4 e 2,6.
-BAGUNCA_PARA_RECORTAR = float(os.environ.get("BAGUNCA_PARA_RECORTAR", "8"))
+
+# Abaixo disto a montagem de integrantes é recusada: o recorte está tão incerto
+# que pôr essa pessoa ao lado das outras não vai dar certo.
+#
+# O número foi refeito depois que o recorte passou a usar matting. Antes a linha
+# ficava em 0,60, herdada da época da máscara dura, quando discordância alta
+# significava mesmo um bloco de fundo colado na pessoa. Medido agora, na foto mais
+# difícil do acervo (a pessoa dentro da luz azul): concordância de 33%, e a arte
+# montada saiu boa — sem bloco de fundo, com as cordas da guitarra inteiras e só o
+# contorno do cabelo um pouco irregular. Com a linha em 0,60 essa inscrição era
+# recusada e a banda mandada refazer trabalho à toa.
+#
+# A trava não foi removida, só recalibrada bem abaixo do pior caso que se provou
+# aceitável. Fotos boas medem de 96% a 97%.
+CONCORDANCIA_MONTAGEM = 0.25
+
+# Resolução em que o recorte é calculado. O maior espaço de foto em qualquer peça
+# tem 1080 de largura e 1050 de altura, então passar disso é detalhe que ninguém
+# vai ver — e custa caro: o matting cresce com o número de pixels, e a oficina do
+# GitHub tem 25 minutos para a programação inteira. Foto de celular chega com
+# 3000 e poucos pixels; reduzir antes é o que mantém o recorte dentro do orçamento.
+LADO_TRABALHO = int(os.environ.get("LADO_TRABALHO", "1280"))
+
+
+_sessoes = {}
+
+
+def sessao(modelo):
+    """
+    Guarda o recortador já carregado.
+
+    Carregar o modelo custa quase tanto quanto usá-lo, e uma banda manda até quatro
+    fotos. Sem isto, o mesmo modelo era lido do disco e montado na memória uma vez
+    por foto — tempo jogado fora numa oficina que tem 25 minutos para a programação
+    inteira, e memória picada à toa, que foi o que fez o recorte falhar por falta
+    de espaço num dos testes.
+    """
+    from rembg import new_session
+
+    if modelo not in _sessoes:
+        _sessoes[modelo] = new_session(modelo)
+    return _sessoes[modelo]
 
 
 def _mascara_de_bytes(dados):
@@ -82,77 +156,173 @@ def suavizar_borda(alfa, encolher=1, esfumar=1.4):
     return suave
 
 
-def _aplicar_mascara(entrada, mascara, saida):
-    im = Image.open(entrada).convert("RGBA")
-    alfa = Image.fromarray((mascara * 255).astype("uint8"), "L").resize(im.size)
-    im.putalpha(suavizar_borda(alfa))
-    im.save(saida)
+def recuperar_com(recortada, mascara):
+    """
+    Traz de volta o pedaço que o recorte principal jogou fora, sem desmanchar o
+    que o matting já acertou.
+
+    O que entra aqui é a soma do que cada recortador achou, e ela é uma máscara
+    dura — serve para dizer "isto também é gente", não para redesenhar a borda.
+    Por isso o alfa final é o MAIOR entre os dois: onde o matting já tinha
+    transição de cabelo, ela fica; onde ele tinha apagado um integrante inteiro,
+    o pedaço volta com a borda esfumada.
+    """
+    im = Image.open(recortada).convert("RGBA")
+    atual = np.array(im.split()[3])
+    volta = Image.fromarray((mascara * 255).astype("uint8"), "L").resize(im.size)
+    im.putalpha(Image.fromarray(np.maximum(atual, np.array(suavizar_borda(volta))), "L"))
+    im.save(recortada)
 
 
-def juntar_integrantes(recortadas, destino, folga=0.04, espaco_embaixo=0.42):
+def largura_do_tronco(pessoa):
+    """
+    A largura típica do tronco de quem está na foto.
+
+    É a medida que diz o TAMANHO DA PESSOA, e não o tamanho do arquivo. Serve para
+    o problema que estraga qualquer montagem: uma foto vem de corpo inteiro e a
+    outra da cintura para cima. Igualando a altura dos dois arquivos, o da cintura
+    vira um gigante ao lado do outro — cabeça o dobro do tamanho, e ninguém acredita
+    que as duas pessoas estavam no mesmo lugar. Igualando o tronco, as duas pessoas
+    ficam do mesmo tamanho, que é o que o olho confere.
+
+    A conta é feita entre o pescoço e a cintura, onde a silhueta é mais estável;
+    cabeça e pernas variam demais com pose e instrumento.
+    """
+    alfa = np.array(pessoa.split()[3]) > 40
+    faixa = alfa[int(alfa.shape[0] * 0.15):max(int(alfa.shape[0] * 0.55), 2)]
+    larguras = faixa.sum(axis=1)
+    larguras = larguras[larguras > 0]
+    return float(np.median(larguras)) if len(larguras) else float(pessoa.width)
+
+
+def topo_da_cabeca(pessoa, fatia=0.22):
+    """
+    A linha onde a cabeça da pessoa começa, em pixels do recorte.
+
+    NÃO é o alto do recorte. Quem segura a guitarra erguida, o microfone ou a
+    baqueta tem o instrumento como ponto mais alto, e alinhar a banda por ele põe a
+    cabeça dessa pessoa bem mais baixa que a dos outros — o grupo deixa de parecer
+    um grupo. A conta desce de cima procurando a primeira linha em que a silhueta
+    fica larga o bastante para ser cabeça, e não haste de microfone.
+    """
+    larguras = (np.array(pessoa.split()[3]) > 40).sum(axis=1)
+    if not larguras.max():
+        return 0
+    cabeca = np.where(larguras >= larguras.max() * fatia)[0]
+    return int(cabeca[0]) if len(cabeca) else 0
+
+
+def igualar_a_luz(pessoa, alvo, limite=(0.6, 1.8)):
+    """
+    Põe todo mundo na mesma luz.
+
+    Fotos tiradas em noites diferentes chegam com luzes diferentes: uma no claro do
+    palco, outra num canto escuro. Lado a lado, quem veio do escuro parece uma
+    sombra entre duas pessoas, e a montagem não convence. Aqui o brilho de cada um
+    é puxado para o mesmo ponto, por multiplicação — que mantém o contraste da foto
+    em vez de achatá-la como somar um valor faria.
+
+    O ganho é limitado de propósito: foto muito escura, forçada até o alvo, vira
+    uma mancha cinza sem preto nenhum. Melhor ficar um pouco mais escura que os
+    outros do que virar neblina.
+    """
+    alfa = np.array(pessoa.split()[3])
+    dentro = alfa > 128
+    if dentro.sum() < 100:
+        return pessoa
+    rgb = np.array(pessoa.convert("RGB"), float)
+    atual = float(np.median(rgb[dentro]))
+    if atual <= 1:
+        return pessoa
+    ganho = min(max(alvo / atual, limite[0]), limite[1])
+    ajustada = Image.fromarray(np.clip(rgb * ganho, 0, 255).astype("uint8"), "RGB")
+    ajustada.putalpha(pessoa.split()[3])
+    return ajustada
+
+
+def juntar_integrantes(recortadas, destino, encosto=0.03):
     """
     Monta uma foto de banda a partir de fotos separadas de cada integrante.
 
-    Cada pessoa já vem recortada. Aqui elas são postas lado a lado, com a mesma
-    altura e os pés na mesma linha, sobre fundo transparente — que é como o kit
-    descreve a montagem ("lado a lado, mantendo rostos, roupas e instrumentos").
+    Cada pessoa já vem recortada. O trabalho aqui não é enfileirar: é fazer as fotos
+    conversarem, para o resultado parecer uma banda e não três retratos colados lado
+    a lado. Três coisas fazem essa diferença, e são as três que esta função resolve:
 
-    Nada é inventado: ninguém é redesenhado, só reposicionado.
+      1. TAMANHO — todos ficam com o tronco da mesma largura, não com o arquivo da
+         mesma altura (ver largura_do_tronco). É o que impede alguém de virar
+         gigante só porque mandou uma foto de perto.
+      2. LUZ — todos vão para o mesmo brilho (ver igualar_a_luz), senão quem veio de
+         uma foto escura parece uma sombra no meio dos outros.
+      3. LINHA DOS OLHOS — o alinhamento é pela cabeça, não pelos pés. Em foto de
+         banda as cabeças ficam mais ou menos na mesma altura, porque as pessoas têm
+         mais ou menos a mesma altura; o que varia é onde a foto foi cortada. Alinhar
+         pelos pés faria o enquadramento de cada foto virar altura de pessoa.
+
+    E eles se encostam de leve, em vez de ficarem com um vão entre cada um: grupo
+    reunido ocupa um bloco só, e espaço vazio entre as pessoas denuncia a colagem.
+
+    Nada é inventado: ninguém é redesenhado, só redimensionado, clareado e posto no
+    lugar.
     """
     pessoas = []
     for caminho in recortadas:
         im = Image.open(caminho).convert("RGBA")
-        cx = im.getbbox()
-        if not cx:
-            continue
-        pessoas.append(im.crop(cx))
+        caixa = composicao.caixa_do_sujeito(im)
+        if caixa:
+            pessoas.append(im.crop(caixa))
     if len(pessoas) < 2:
         raise RuntimeError("preciso de pelo menos duas fotos para montar a banda")
 
-    # Mesma altura para todo mundo, para ninguém virar gigante ao lado do outro.
-    altura = int(np.median([p.height for p in pessoas]))
-    altura = max(600, min(altura, 1800))
+    # 1. Mesmo tamanho de gente. O tronco de referência é a mediana do grupo, para
+    # a montagem não ser arrastada por uma foto fora do padrão.
+    troncos = [largura_do_tronco(p) for p in pessoas]
+    alvo_tronco = float(np.median(troncos))
     ajustadas = []
-    for p in pessoas:
-        nova_largura = max(1, int(p.width * altura / p.height))
-        ajustadas.append(p.resize((nova_largura, altura), Image.LANCZOS))
+    for p, tronco in zip(pessoas, troncos):
+        escala = alvo_tronco / max(tronco, 1)
+        escala = min(max(escala, 0.25), 4.0)
+        ajustadas.append(p.resize((max(1, round(p.width * escala)),
+                                   max(1, round(p.height * escala))), Image.LANCZOS))
 
-    espaco = int(altura * folga)
-    largura = sum(p.width for p in ajustadas) + espaco * (len(ajustadas) - 1)
+    # Com todo mundo do mesmo tamanho, a montagem cresce conforme o número de
+    # pessoas. Limitar a altura aqui evita um arquivo gigante sem ganho nenhum: a
+    # arte não passa de 1050 pixels de altura no maior dos espaços.
+    mais_alta = max(p.height for p in ajustadas)
+    if mais_alta > 1800:
+        reduzir = 1800 / mais_alta
+        ajustadas = [p.resize((max(1, round(p.width * reduzir)),
+                               max(1, round(p.height * reduzir))), Image.LANCZOS)
+                     for p in ajustadas]
+        mais_alta = max(p.height for p in ajustadas)
 
-    # Espaço transparente embaixo. O layout não muda em nada: é a foto que sobe
-    # dentro do espaço dela, deixando a faixa de baixo livre para a logo. Sem isso a
-    # logo encosta em quem está no meio.
-    sobra = int(altura * espaco_embaixo)
-    tela = Image.new("RGBA", (largura, altura + sobra), (0, 0, 0, 0))
-    x = 0
+    # 2. Mesma luz para todos.
+    alvos = []
     for p in ajustadas:
-        tela.alpha_composite(p, (x, 0))      # pés alinhados: todos terminam na mesma linha
-        x += p.width + espaco
+        alfa = np.array(p.split()[3]) > 128
+        if alfa.sum() > 100:
+            alvos.append(float(np.median(np.array(p.convert("RGB"), float)[alfa])))
+    if alvos:
+        alvo_luz = float(np.median(alvos))
+        ajustadas = [igualar_a_luz(p, alvo_luz) for p in ajustadas]
+
+    # 3. Cabeças na mesma linha, com os ombros se encostando. O alinhamento é pela
+    # cabeça de cada um (ver topo_da_cabeca), não pelo alto do arquivo: quem ergue a
+    # guitarra tem o instrumento no alto, e alinhar por ele afunda a cabeça da
+    # pessoa em relação às outras.
+    cabecas = [topo_da_cabeca(p) for p in ajustadas]
+    mais_fundo = max(cabecas)
+    deslocamentos = [mais_fundo - c for c in cabecas]
+    altura_total = max(p.height + d for p, d in zip(ajustadas, deslocamentos))
+
+    encaixe = int(alvo_tronco * encosto)
+    largura = sum(p.width for p in ajustadas) - encaixe * (len(ajustadas) - 1)
+    tela = Image.new("RGBA", (max(largura, 1), altura_total), (0, 0, 0, 0))
+    x = 0
+    for p, desloca in zip(ajustadas, deslocamentos):
+        tela.alpha_composite(p, (x, desloca))
+        x += p.width - encaixe
     tela.save(destino)
     return destino, len(ajustadas)
-
-
-def bagunca_do_fundo(caminho, mascara):
-    """
-    Mede o quanto o fundo da foto é bagunçado, fora da área de quem está na foto.
-
-    Usa variação LOCAL, não o desvio geral: fundo de estúdio com degradê varia muito
-    de um canto ao outro, mas quase nada de um pixel para o vizinho. Bagunça — bar,
-    rua, gente atrás — varia muito de perto. Medido em fundos limpos: de 0,4 a 2,6.
-    """
-    from scipy import ndimage
-
-    cinza = np.array(Image.open(caminho).convert("L"), float)
-    m = np.array(Image.fromarray((mascara * 255).astype("uint8"), "L")
-                 .resize((cinza.shape[1], cinza.shape[0]))) > 128
-    fundo = ~ndimage.binary_dilation(m, iterations=20)
-    if fundo.sum() < 2000:
-        return 0.0        # quase não há fundo: nada a tirar
-    media = ndimage.uniform_filter(cinza, 9)
-    media2 = ndimage.uniform_filter(cinza * cinza, 9)
-    local = np.sqrt(np.clip(media2 - media * media, 0, None))
-    return float(np.median(local[fundo]))
 
 
 def conferir_tem_conteudo(imagem):
@@ -163,11 +333,87 @@ def conferir_tem_conteudo(imagem):
                            % (visivel * 100))
 
 
+# Limites da decisão "precisa recortar?". Calibrados sobre as fotos que já passaram
+# pelo sistema: fundo de estúdio e parede lisa ficaram em 0,5 a 2,1 de rugosidade e
+# até 61 de diferença de tom entre os cantos; palco com gente atrás e amplificador
+# ficaram em 1,1 a 2,8 e 67 a 115. A margem é estreita, e é por isso que errar aqui
+# não pode custar caro — ver a rede de segurança em preparar().
+RUGOSIDADE_DE_FUNDO_SUJO = 2.5
+DIFERENCA_DE_TOM_SUJA = 65.0
+
+
+def fundo_neutro(caminho, lado=700, parte=0.18):
+    """
+    Diz se o fundo da foto é neutro — estúdio, parede lisa, degradê.
+
+    Foto de banda com fundo neutro NÃO precisa ser recortada: basta entrar no
+    tamanho certo do espaço, tratada em preto e branco, com as bordas dissolvidas no
+    fundo da arte. Recortar nesse caso é trabalho que só pode piorar: gasta minutos,
+    arrisca comer um pedaço da pessoa e troca um fundo que já combinava por uma
+    silhueta com cara de recorte. Recorte existe para quando é preciso SEPARAR a
+    pessoa — para juntá-la com outras numa banda, ou para tirá-la de um fundo que
+    atrapalha.
+
+    A conta é feita nos cantos, que é onde o fundo costuma aparecer sozinho, e usa
+    dois sinais porque nenhum dos dois sozinho separa:
+      - rugosidade: o quanto a imagem muda de um pixel para o vizinho. Parede e
+        degradê quase não mudam de perto, mesmo variando muito de um lado ao outro;
+        plateia, instrumento e luz de palco mudam muito.
+      - diferença de tom entre os cantos: num fundo neutro os quatro cantos são
+        parecidos; num palco, um canto tem refletor e o outro é breu.
+
+    Os dois cantos mais calmos é que mandam na rugosidade: assim, uma pessoa que
+    invada um canto da foto não faz o fundo inteiro parecer bagunçado.
+    """
+    from scipy import ndimage
+
+    im = Image.open(caminho).convert("L")
+    im.thumbnail((lado, lado), Image.LANCZOS)
+    cinza = np.array(im, float)
+    alto, largo = cinza.shape
+    ch, cl = max(int(alto * parte), 2), max(int(largo * parte), 2)
+
+    media = ndimage.uniform_filter(cinza, 9)
+    media2 = ndimage.uniform_filter(cinza * cinza, 9)
+    local = np.sqrt(np.clip(media2 - media * media, 0, None))
+
+    cantos = [(slice(0, ch), slice(0, cl)),
+              (slice(0, ch), slice(largo - cl, largo)),
+              (slice(alto - ch, alto), slice(0, cl)),
+              (slice(alto - ch, alto), slice(largo - cl, largo))]
+    rugosidades = sorted(float(np.median(local[a, b])) for a, b in cantos)
+    tons = [float(np.median(cinza[a, b])) for a, b in cantos]
+
+    rugosidade = float(np.mean(rugosidades[:2]))
+    diferenca = max(tons) - min(tons)
+    neutro = (rugosidade <= RUGOSIDADE_DE_FUNDO_SUJO
+              and diferenca <= DIFERENCA_DE_TOM_SUJA)
+    return neutro, {"rugosidade": round(rugosidade, 2), "tom": round(diferenca, 1)}
+
+
+def em_resolucao_de_trabalho(caminho, lado=None):
+    """Reduz a foto ao tamanho em que o recorte é calculado. Ver LADO_TRABALHO."""
+    import io as _io
+
+    lado = lado or LADO_TRABALHO
+    im = Image.open(caminho).convert("RGB")
+    if max(im.size) > lado:
+        im.thumbnail((lado, lado), Image.LANCZOS)
+    dados = _io.BytesIO()
+    im.save(dados, "PNG")
+    return im, dados.getvalue()
+
+
 def recortar_fundo(entrada, saida, obrigatorio=False):
     """
     Recorta o fundo e diz o quanto dá para confiar no resultado.
 
-    Devolve (caminho, aviso) — aviso é None quando o recorte é confiável.
+    Devolve (caminho, aviso, concordância). O aviso é None quando o recorte é
+    confiável; a concordância é a medida crua, de 0 a 1, para quem precisa decidir
+    por ela — a montagem de integrantes decide. Ela vem como número, e não como
+    palavra dentro do aviso, porque quem lê o aviso para decidir fica refém da
+    redação dele: mudar uma frase mudaria o comportamento do sistema sem que
+    ninguém percebesse.
 
     O modelo bom (birefnet) é lento mas é o único que não engole um integrante da
     banda: medido numa foto de 4 pessoas, o modelo rápido apagou um deles inteiro.
@@ -175,30 +421,44 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
     discordam muito, é sinal de que a foto é ambígua e o recorte provavelmente
     comeu alguma coisa. Medido: fotos que recortam bem dão 96–97% de concordância;
     a foto problemática deu 56%.
+
+    O recorte é tirado com matting, não com máscara dura. A diferença aparece no
+    cabelo e nas cordas do instrumento: a máscara dura decide pixel a pixel se é
+    pessoa ou fundo, então fio de cabelo e corda de guitarra — que são mais finos
+    que um pixel e deixam o fundo aparecer através — ou somem ou vêm com um naco
+    do fundo colado em volta. Sobre o preto da arte, esse naco aparece como
+    contorno claro: foi o "contorno cinza" que apareceu nas primeiras artes.
+    O matting mede o quanto de cada pixel é pessoa, em vez de decidir sim ou não,
+    e a `decontaminate` ainda tira a cor do fundo antigo que ficou misturada na
+    borda. Medido na foto mais difícil (pessoa diluída na luz azul): a máscara
+    dura entregou 0 pixel de transição; o matting entregou 37 mil — são os fios de
+    cabelo e as cordas que antes eram jogados fora.
     """
-    from rembg import remove, new_session
+    from rembg import remove
 
-    with open(entrada, "rb") as f:
-        bruto = f.read()
-
-    cortado = remove(bruto, session=new_session(MODELO_BOM), post_process_mask=True)
+    # O recortador pede um bloco de memória proporcional ao tamanho da foto — numa
+    # foto grande, perto de 800 MB de uma vez só. Quando a máquina está apertada,
+    # ele falha, e falhar aqui tem consequência séria: numa montagem de banda, o
+    # integrante daquela foto some do grupo. Então, antes de desistir, tenta de novo
+    # menor. Foto menor recorta pior nos fios de cabelo, e é muito melhor que um
+    # integrante faltando.
+    cortado = None
+    ultimo_erro = None
+    for lado in (LADO_TRABALHO, int(LADO_TRABALHO * 0.7), int(LADO_TRABALHO * 0.5)):
+        try:
+            _, bruto = em_resolucao_de_trabalho(entrada, lado)
+            cortado = remove(bruto, session=sessao(MODELO_BOM), post_process_mask=True,
+                             vitmatte=True, decontaminate=True)
+            break
+        except Exception as erro:
+            ultimo_erro = erro
+    if cortado is None:
+        raise RuntimeError("o recortador não conseguiu processar esta foto nem "
+                           "reduzindo o tamanho: %s" % ultimo_erro)
     with open(saida, "wb") as f:
         f.write(cortado)
     if not tem_transparencia_real(saida):
         raise RuntimeError("o recorte saiu sem transparência — foto provavelmente ruim")
-
-    # Só recorta quem precisa. Fundo limpo — estúdio, parede lisa, degradê — fica
-    # como está: tirar não melhora nada e ainda arrisca deixar contorno na arte.
-    bagunca = bagunca_do_fundo(entrada, _mascara(saida))
-    if bagunca < BAGUNCA_PARA_RECORTAR and not obrigatorio:
-        Image.open(entrada).convert("RGBA").save(saida)
-        return saida, ("fundo limpo (medida %.1f): usei a foto inteira, sem recortar"
-                       % bagunca)
-
-    # Mesmo o recorte bom sai com uma carreirinha do fundo antigo na borda.
-    pronta = Image.open(saida).convert("RGBA")
-    pronta.putalpha(suavizar_borda(pronta.split()[3]))
-    pronta.save(saida)
 
     principal = _mascara(saida)
     if principal.sum() < principal.size * 0.04:
@@ -206,8 +466,9 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
                            % (principal.sum() / principal.size * 100))
 
     aviso = None
+    concordancia = 1.0
     try:
-        outra = _mascara_de_bytes(remove(bruto, session=new_session(MODELO_CONFERENCIA),
+        outra = _mascara_de_bytes(remove(bruto, session=sessao(MODELO_CONFERENCIA),
                                          post_process_mask=True))
         uniao = (principal | outra).sum()
         concordancia = (principal & outra).sum() / uniao if uniao else 1.0
@@ -226,9 +487,9 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
             # perde a mesa ou o instrumento. Juntando o que cada um achou, recupera-se
             # boa parte do que seria jogado fora. Medido na foto problemática: sozinho o
             # melhor modelo perdia 27% da imagem; juntando os três, perde 17%.
-            terceira = _mascara_de_bytes(remove(bruto, session=new_session(MODELO_RESGATE),
+            terceira = _mascara_de_bytes(remove(bruto, session=sessao(MODELO_RESGATE),
                                                 post_process_mask=True))
-            _aplicar_mascara(entrada, principal | outra | terceira, saida)
+            recuperar_com(saida, principal | outra | terceira)
             aviso = ("o recorte de fundo desta foto é duvidoso (os recortadores "
                      "discordaram em %.0f%% da área, e juntei o que cada um achou). "
                      "Confira a arte antes de aprovar; se estiver faltando alguém ou algum "
@@ -237,26 +498,26 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
     except Exception as e:
         aviso = "não consegui conferir a qualidade do recorte: %s" % e
 
-    return saida, aviso
+    return saida, aviso, concordancia
 
 
 def corpo_inteiro(caminho):
     """Foto bem mais alta que larga quase sempre é de corpo inteiro."""
-    im = Image.open(caminho)
-    cx = im.convert("RGBA").getbbox()
-    if not cx:
-        return False
-    largura, altura = cx[2] - cx[0], cx[3] - cx[1]
-    return altura / max(largura, 1) > 1.55
+    forma = proporcao(caminho)
+    return bool(forma) and forma < 1 / 1.55
 
 
 def proporcao(caminho):
-    """Largura dividida por altura da parte visível. Acima de 1 a foto é deitada."""
-    im = Image.open(caminho).convert("RGBA")
-    cx = im.getbbox()
-    if not cx:
+    """
+    Largura dividida por altura de quem aparece. Acima de 1 a pessoa está deitada
+    na foto; abaixo de 1, em pé. É esta conta que decide qual foto vai para qual
+    peça, e ela mede a pessoa, não o arquivo: depois do recorte, uma foto deitada
+    de alguém em pé tem um sujeito em pé, e é o sujeito que precisa caber no vão.
+    """
+    caixa = composicao.caixa_do_sujeito(Image.open(caminho))
+    if not caixa:
         return 0
-    return (cx[2] - cx[0]) / max(cx[3] - cx[1], 1)
+    return (caixa[2] - caixa[0]) / max(caixa[3] - caixa[1], 1)
 
 
 def conferir_logo(origem, recortada, avisos):
@@ -390,6 +651,7 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
     houve_montagem = False
     duvidosas = []
     recortadas = []
+    inteiras = set()     # as que entram sem recorte, dissolvidas no fundo
     for i, foto in enumerate(fotos):
         destino = os.path.join(trabalho, "cortada%d.png" % (i + 1))
         try:
@@ -398,38 +660,95 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
                 conferir_tem_conteudo(pronta)
                 pronta.save(destino)
                 avisos.append("foto%d já veio recortada; usada direto" % (i + 1))
+            elif not juntar and fundo_neutro(foto)[0]:
+                # Fundo neutro e a pessoa aparece sozinha nesta peça: não há o que
+                # separar. A foto entra inteira, no tamanho do espaço, tratada em
+                # P&B e com as bordas dissolvidas no fundo da arte. Recortar aqui
+                # só poderia piorar — gasta minutos, arrisca comer um pedaço da
+                # pessoa e troca um fundo que já combinava por uma silhueta com
+                # cara de recorte.
+                inteira = Image.open(foto).convert("RGBA")
+                conferir_tem_conteudo(inteira)
+                inteira.save(destino)
+                inteiras.add(destino)
+                medida = fundo_neutro(foto)[1]
+                avisos.append("foto%d tem fundo neutro (%s); usei inteira, sem "
+                              "recortar" % (i + 1, medida))
             else:
-                # Para juntar integrantes é obrigatório recortar: sem tirar o fundo
-                # de cada um, as pessoas não encaixam lado a lado.
-                _, aviso = recortar_fundo(foto, destino, obrigatorio=juntar)
+                # Ou vai entrar numa montagem — e aí separar é obrigatório, senão
+                # as pessoas não encaixam lado a lado — ou o fundo atrapalha.
+                _, aviso, concordancia = recortar_fundo(foto, destino,
+                                                        obrigatorio=juntar)
                 if aviso:
                     avisos.append("foto%d: %s" % (i + 1, aviso))
-                    if juntar and "discordaram muito" in aviso:
+                if juntar:
+                    if concordancia < CONCORDANCIA_MONTAGEM:
                         duvidosas.append(i + 1)
+                elif concordancia < CONCORDANCIA_RESGATE:
+                    # Rede de segurança: fora da montagem, recorte duvidoso não vai
+                    # para a arte. A foto inteira, com o fundo dissolvido, é sempre
+                    # melhor do que uma silhueta que comeu um pedaço da pessoa — e
+                    # é o que protege a arte quando a leitura do fundo erra.
+                    Image.open(foto).convert("RGBA").save(destino)
+                    inteiras.add(destino)
+                    avisos.append("foto%d: o recorte não ficou confiável, então usei "
+                                  "a foto inteira com as bordas dissolvidas no fundo "
+                                  "da arte" % (i + 1))
             recortadas.append(destino)
-        except Exception as e:  # uma foto ruim não derruba a programação inteira
-            avisos.append("foto%d descartada: %s" % (i + 1, e))
+        except Exception as e:
+            # Recorte falhou. Se a foto tem conteúdo, ela não é descartada: entra
+            # inteira, mas dissolvida nas bordas, porque fotografia retangular
+            # colada dentro da arte é o único resultado que o padrão do kit não
+            # admite de jeito nenhum. Descartar seria pior: a arte sairia sem banda.
+            # Mas foto sem conteúdo nenhum é descartada mesmo — aproveitá-la só
+            # produziria uma arte vazia, que é o que estas travas existem para
+            # impedir que chegue ao Instagram.
+            try:
+                inteira = Image.open(foto).convert("RGBA")
+                conferir_tem_conteudo(inteira)
+                inteira.save(destino)
+                recortadas.append(destino)
+                inteiras.add(destino)
+                avisos.append("foto%d não pôde ser recortada (%s); entrou inteira, com "
+                              "as bordas dissolvidas no fundo da arte" % (i + 1, e))
+            except Exception as vazia:
+                avisos.append("foto%d descartada: %s" % (i + 1, vazia))
 
     if not recortadas:
-        raise RuntimeError("nenhuma das fotos pôde ser recortada; " + " | ".join(avisos))
+        raise RuntimeError("nenhuma das fotos pôde ser usada; " + " | ".join(avisos))
 
     if juntar:
-        # Montagem com recorte duvidoso sai feia sempre: a pessoa vem com um halo do
-        # fundo colado, fica menor que as outras e desalinhada. Melhor recusar e
-        # pedir a foto certa do que publicar algo ruim.
+        # Numa montagem, o recorte de cada um fica exposto lado a lado com o dos
+        # outros: quem saiu mal não se esconde, aparece como a pessoa estranha do
+        # meio. Por isso a montagem recusa antes de o recorte ficar ruim de verdade
+        # — ver CONCORDANCIA_MONTAGEM, que foi recalibrada olhando a arte montada.
         if duvidosas:
             raise RuntimeError(
-                "não dá para juntar os integrantes: a foto %s tem a pessoa se "
-                "misturando com a luz do fundo, e o recorte sai com um halo colado. "
-                "Mande essa foto já recortada em PNG com fundo transparente, ou troque "
-                "por uma com o fundo mais separado da pessoa."
+                "não dá para juntar os integrantes: na foto %s não dá para saber onde "
+                "a pessoa termina e o fundo começa, e ela sairia muito diferente das "
+                "outras na foto montada. Mande essa foto já recortada em PNG com fundo "
+                "transparente, ou troque por uma com o fundo mais separado da pessoa."
                 % ", ".join("nº %d" % n for n in duvidosas))
-        if len(recortadas) < 2:
-            avisos.append("veio só uma foto; não havia o que juntar")
+        # Só entra na montagem quem foi recortado: uma foto retangular colada ao
+        # lado de pessoas recortadas vira um bloco de fundo no meio da banda.
+        para_juntar = [c for c in recortadas if c not in inteiras]
+        if len(para_juntar) < len(recortadas):
+            # Integrante que não pôde ser recortado não pode simplesmente sair da
+            # foto: a arte iria para o Instagram com a banda incompleta, e ninguém
+            # perceberia — nem a banda, até ver a publicação. Melhor não publicar.
+            raise RuntimeError(
+                "%d das %d fotos de integrantes não puderam ser recortadas, e sem "
+                "recorte elas não entram na foto da banda. Publicar assim deixaria "
+                "integrante de fora, então não fiz nada. Reenvie essas fotos já "
+                "recortadas em PNG com fundo transparente, ou com o fundo mais "
+                "separado da pessoa."
+                % (len(recortadas) - len(para_juntar), len(recortadas)))
+        if len(para_juntar) < 2:
+            avisos.append("veio só uma foto recortada; não havia o que juntar")
         else:
             montada = os.path.join(trabalho, "banda_montada.png")
             try:
-                _, quantos = juntar_integrantes(recortadas, montada)
+                _, quantos = juntar_integrantes(para_juntar, montada)
                 houve_montagem = True
                 avisos.append("montei %d integrantes lado a lado numa foto só da banda"
                               % quantos)
@@ -437,31 +756,45 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
             except Exception as e:
                 avisos.append("não consegui montar a banda (%s); usei as fotos separadas" % e)
 
-    # Cada layout tem um espaço com formato diferente, e é o próprio kit que mostra
+    # Cada peça tem um espaço com formato diferente, e é o próprio kit que mostra
     # qual foto vai em qual: no exemplo dele, a foto DEITADA do trio vai nas opções A
     # e C, e a foto EM PÉ vai na opção B — que tem uma área alta e estreita ao lado da
-    # coluna vermelha. Mandar uma foto deitada para a B deixa metade da peça vazia.
+    # coluna vermelha. A proporção medida aqui é a de quem aparece na foto, não a do
+    # arquivo: depois do recorte, uma foto deitada de uma pessoa em pé tem um sujeito
+    # em pé, e é ele que precisa caber.
     recortadas.sort(key=proporcao, reverse=True)
-    foto_principal = recortadas[0]   # a mais deitada: opções A e C
-    foto_em_pe = recortadas[-1]      # a mais em pé: opção B
+    mais_deitada = recortadas[0]    # peças A e C: vão largo e baixo
+    mais_em_pe = recortadas[-1]     # peça B: vão alto e estreito
 
     saida = {}
     tratar = os.path.join(pasta_gerador, "tratar_foto.py")
 
-    principal_bw = os.path.join(bands, ident + "_bw.png")
-    executar([sys.executable, tratar, foto_principal, principal_bw])
-    saida["photo"] = "bands/" + os.path.basename(principal_bw)
+    def entregar(peca, origem, chave, crop=None):
+        """Trata em P&B e entrega a foto já na forma do espaço desta peça."""
+        bw = os.path.join(trabalho, "%s_%s_bw.png" % (ident, peca))
+        argumentos = [sys.executable, tratar, origem, bw]
+        if crop:
+            argumentos += ["--crop", str(crop)]
+        executar(argumentos)
 
-    if foto_em_pe != foto_principal:
-        em_pe_bw = os.path.join(bands, ident + "_empe_bw.png")
-        executar([sys.executable, tratar, foto_em_pe, em_pe_bw])
-        saida["photoB"] = "bands/" + os.path.basename(em_pe_bw)
+        destino = os.path.join(bands, "%s_%s.png" % (ident, peca))
+        if origem in inteiras:
+            composicao.integrar_retangulo(bw, destino, peca)
+        else:
+            ocupacao = composicao.encaixar(bw, destino, peca)
+            if ocupacao < composicao.ALTURA_POBRE:
+                avisos.append(
+                    "na peça %s a banda ocupou só %.0f%% da altura do espaço: a foto é "
+                    "muito mais deitada que o vão, e sobrou fundo vazio. Uma foto em pé "
+                    "(ou uma foto a mais, em pé) resolve." % (peca, ocupacao * 100))
+        saida[chave] = "bands/" + os.path.basename(destino)
 
-    if corpo_inteiro(foto_principal):
-        crop = os.path.join(bands, ident + "_crop.png")
-        executar([sys.executable, tratar, foto_principal, crop, "--crop", "0.66"])
-        saida["photoC"] = "bands/" + os.path.basename(crop)
-        avisos.append("foto de corpo inteiro: criada a versão cortada na cintura para A e C")
+    entregar("A", mais_deitada, "photo")
+    entregar("B", mais_em_pe, "photoB")
+    # A polaroide é um retrato: de corpo inteiro ela mostraria a pessoa de longe,
+    # com o rosto do tamanho de uma unha. Cortar na cintura é o que o kit faz.
+    entregar("C", mais_deitada, "photoC",
+             crop=0.66 if corpo_inteiro(mais_deitada) else None)
 
     if logos:
         logo = logos[0]

@@ -31,6 +31,7 @@
   .pronto{text-align:center;padding:40px 10px}
   .pronto .tico{font-size:46px;color:var(--vermelho)}
   .escondido{position:absolute;left:-9999px}
+  .oculto{display:none}
 </style>
 </head>
 <body>
@@ -56,6 +57,31 @@
 
     <label>@ do Instagram da banda</label>
     <input type="text" id="instagram" required placeholder="@suabanda" maxlength="40">
+
+    <label>Valor do couvert</label>
+    <input type="text" id="couvert" inputmode="decimal" placeholder="15" maxlength="12">
+    <div class="dica">Só o valor, em reais. Deixe em branco se não houver couvert —
+      a arte sai sem essa informação.</div>
+
+    <div class="confirma">
+      <input type="checkbox" id="querColab">
+      <label for="querColab" style="margin:0;font-weight:400">Publicar como
+        <b>colaboração</b> no Instagram, para o post aparecer também no perfil de vocês.</label>
+    </div>
+    <div class="dica">O Instagram manda um convite, e a colaboração só aparece depois que
+      vocês aceitam pelo aplicativo. Só funciona em perfil aberto, e só na publicação —
+      stories não aceitam colaboração.</div>
+
+    <div id="caixaColab" class="oculto">
+      <label>Perfis que vão aparecer como autores <span class="op">— até 3</span></label>
+      <input type="text" id="colab1" placeholder="@suabanda" maxlength="40">
+      <input type="text" id="colab2" placeholder="@outroperfil (opcional)" maxlength="40"
+             style="margin-top:8px">
+      <input type="text" id="colab3" placeholder="@maisum (opcional)" maxlength="40"
+             style="margin-top:8px">
+      <div class="dica">O primeiro já vem com o @ da banda. Pode trocar ou acrescentar —
+        por exemplo o perfil de um integrante.</div>
+    </div>
 
     <label>Fotos da banda <span class="op">— até 4</span></label>
     <div class="arquivo" onclick="document.getElementById('fotos').click()">
@@ -167,6 +193,18 @@ function ligarCampo(idCampo, idRotulo, idPrevia, limite){
 ligarCampo('fotos', 'rotFotos', 'prevFotos', 4);
 ligarCampo('logo', 'rotLogo', 'prevLogo', 1);
 
+// A caixa dos perfis da colaboração só aparece se a banda pedir colaboração, e o
+// primeiro perfil já vem preenchido com o @ dela — que é o colaborador em quase
+// todos os casos. Quem quiser marcar mais alguém acrescenta.
+document.getElementById('querColab').addEventListener('change', function(){
+  var caixa = document.getElementById('caixaColab');
+  caixa.classList.toggle('oculto', !this.checked);
+  var primeiro = document.getElementById('colab1');
+  if (this.checked && !primeiro.value) {
+    primeiro.value = document.getElementById('instagram').value;
+  }
+});
+
 document.getElementById('f').addEventListener('submit', function(ev){
   ev.preventDefault();
   document.getElementById('erro').style.display = 'none';
@@ -192,6 +230,12 @@ document.getElementById('f').addEventListener('submit', function(ev){
       data: document.getElementById('data').value,
       hora: document.getElementById('hora').value,
       instagram: document.getElementById('instagram').value,
+      couvert: document.getElementById('couvert').value,
+      colabs: document.getElementById('querColab').checked
+        ? ['colab1', 'colab2', 'colab3'].map(function(id){
+            return document.getElementById(id).value;
+          })
+        : [],
       sobrenome: document.getElementById('sobrenome').value,
       juntar: document.getElementById('juntar').checked,
       fotos: prontas,

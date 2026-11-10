@@ -30,6 +30,10 @@ let CUR = 'feed';
 const bandName = (s, size, extra = '') => hasLogo(s)
   ? `<img src="${F(s.bandLogo)}" style="height:${(s.logoH && s.logoH[CUR]) || size * 1.3}px;max-width:820px;object-fit:contain;filter:drop-shadow(0 6px 18px rgba(0,0,0,.85))">`
   : `<div style="font-family:Anton;font-size:${size}px;line-height:.95;text-transform:uppercase;white-space:nowrap;${extra}">${s.band}</div>`;
+// O couvert vem da inscricao. Era um valor fixo escrito na arte; virou dado porque
+// cada show cobra o seu, e show sem couvert existe — nesse caso a linha nao aparece,
+// em vez de anunciar um preco que ninguem combinou.
+const couvert = s => String(s.couvert == null ? '' : s.couvert).trim();
 const fit = (s, max, k) => Math.round(Math.min(max, k / Math.max(s.band.length, 1)));
 
 // ---------- A: TARJA RASGADA ----------
@@ -73,7 +77,7 @@ function A(s, story) {
  <div class="sep"></div>
  <div><div class="row"><img src="${B.door}"><div><small>BAR ABRE</small>18H</div></div>
  <div class="row"><img src="${B.show}"><div><small>SHOW</small>A PARTIR DAS 20H</div></div></div>
- <div class="cv"><span>COUVERT</span><b>R$15</b></div>
+ ${couvert(s) ? `<div class="cv"><span>COUVERT</span><b>R$${couvert(s)}</b></div>` : ''}
 </div>
 <div class="abs foot"><div class="logo"><img src="${B.logoRed}" style="height:${story ? 150 : 108}px"></div>
 <div class="bar"><span>${ADDR}</span><b>${IG}</b></div></div>`;
@@ -101,7 +105,7 @@ function B_(s, story) {
 .name{left:${colW + 40}px;right:40px;bottom:${story ? 590 : 300}px;z-index:7}
 .pre{font-family:Bebas;font-size:${story ? 44 : 38}px;letter-spacing:10px;color:${RED}}
 .rule{height:6px;width:140px;background:${RED};margin:16px 0 0}
-.grid{left:${colW + 40}px;right:40px;bottom:${story ? 300 : 110}px;z-index:7;display:grid;grid-template-columns:1fr 1fr 1fr;border-top:2px solid rgba(255,255,255,.25)}
+.grid{left:${colW + 40}px;right:40px;bottom:${story ? 300 : 110}px;z-index:7;display:grid;grid-template-columns:${couvert(s) ? '1fr 1fr 1fr' : '1fr 1fr'};border-top:2px solid rgba(255,255,255,.25)}
 .cell{padding:20px 0 0;display:flex;gap:12px;align-items:center}
 .cell img{height:${story ? 58 : 50}px;width:${story ? 58 : 50}px;object-fit:contain}
 .cell small{display:block;font-family:Bebas;font-size:${story ? 28 : 24}px;letter-spacing:3px;color:rgba(255,255,255,.65);line-height:1}
@@ -119,7 +123,7 @@ function B_(s, story) {
 <div class="abs grid">
  <div class="cell"><img src="${B.door}"><div><small>BAR ABRE</small><b>18H</b></div></div>
  <div class="cell"><img src="${B.show}"><div><small>SHOW</small><b>A PARTIR<br>DAS 20H</b></div></div>
- <div class="cell"><img src="${B.ticket}"><div><small>COUVERT</small><b>R$15</b></div></div>
+ ${couvert(s) ? `<div class="cell"><img src="${B.ticket}"><div><small>COUVERT</small><b>R$${couvert(s)}</b></div></div>` : ''}
 </div>
 <div class="abs foot"><span>${ADDR}</span><b>${IG}</b></div>`;
 }
@@ -167,7 +171,7 @@ body{background:${RED}}
  <div class="d"><div class="n">${s.day}</div><div class="m">${s.mesAbrev||"NOV"} · ${s.weekday.replace('-FEIRA', '')}</div></div>
  <div class="i"><div class="r"><img src="${B.door}"><span><i>BAR ABRE</i>18H</span></div>
  <div class="r"><img src="${B.show}"><span><i>SHOW</i>A PARTIR DAS 20H</span></div>
- <div class="r"><img src="${B.ticket}"><span><i>COUVERT</i>R$15</span></div></div>
+ ${couvert(s) ? `<div class="r"><img src="${B.ticket}"><span><i>COUVERT</i>R$${couvert(s)}</span></div>` : ''}</div>
 </div>
 <div class="abs foot"><img src="${B.logoWhite}" style="height:${story ? 140 : 96}px;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4))"><div class="t">${ADDR} &nbsp;|&nbsp; <b>${IG}</b></div></div>`;
 }

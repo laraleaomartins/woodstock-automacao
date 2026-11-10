@@ -62,8 +62,8 @@ function publicarPeca(post) {
     carga.media_type = 'STORIES';   // stories não aceitam legenda
   } else {
     carga.caption = String(post.Legenda || '');
-    var colab = conviteColaboradora(post);
-    if (colab) carga.collaborators = JSON.stringify([colab]);
+    var colabs = convitesDeColaboracao(post);
+    if (colabs.length) carga.collaborators = JSON.stringify(colabs);
   }
 
   var container;
@@ -100,12 +100,38 @@ function esperarContainer(containerId) {
   throw new Error('O Instagram demorou demais para preparar a imagem.');
 }
 
-function conviteColaboradora(post) {
-  if (!cfgSim('CONVITE_COLAB')) return null;
+/**
+ * Os perfis que assinam a publicação junto com o bar. Até três, que é o teto do
+ * Instagram — e só em publicação, porque story não aceita colaboração.
+ *
+ * Quem escolhe é a banda, na inscrição. Quando ela não escolheu nada, o padrão
+ * continua sendo o @ dela: é o caso de longe mais comum, e era o que o sistema já
+ * fazia antes de a inscrição perguntar.
+ */
+function convitesDeColaboracao(post) {
+  if (!cfgSim('CONVITE_COLAB')) return [];
   var prog = acharProgramacao(post.ProgramacaoId);
-  if (!prog) return null;
-  var arroba = String(prog.InstagramBanda || '').replace(/^@/, '').trim();
-  return arroba || null;
+  if (!prog) return [];
+
+  var escolhidos = [];
+  try {
+    escolhidos = (JSON.parse(prog.Artes || '{}').recebidos || {}).colabs || [];
+  } catch (x) {
+    escolhidos = [];
+  }
+  if (!escolhidos.length) {
+    escolhidos = [String(prog.InstagramBanda || '')];
+  }
+
+  var vistos = {};
+  return [].concat(escolhidos)
+    .map(function (p) { return String(p || '').replace(/^@/, '').trim(); })
+    .filter(function (p) {
+      if (!p || vistos[p]) return false;
+      vistos[p] = true;
+      return true;
+    })
+    .slice(0, 3);
 }
 
 /** Quantas publicações ainda cabem nas próximas 24h (a Meta limita a 100). */

@@ -33,6 +33,17 @@ function montarLegendas(prog) {
   var perfil = cfg('PERFIL_OFICIAL');
   var arrobaBanda = String(prog.InstagramBanda || '');
 
+  // O couvert é o que a banda informou na inscrição, igual ao que vai na arte.
+  // Deixá-lo escrito fixo aqui faria a legenda anunciar um preço e a arte, outro —
+  // e quem lesse acreditaria na legenda. Show sem couvert simplesmente não traz a
+  // linha, em vez de anunciar entrada paga que não existe.
+  var couvert = '';
+  try {
+    couvert = String((JSON.parse(prog.Artes || '{}').recebidos || {}).couvert || '');
+  } catch (x) {
+    couvert = '';
+  }
+
   var saida = {};
   ['A', 'B', 'C'].forEach(function (opcao, i) {
     var abertura = ABERTURAS[opcao][i % ABERTURAS[opcao].length]
@@ -44,13 +55,17 @@ function montarLegendas(prog) {
       '📅 ' + fmt(data, 'dd/MM') + ' · ' + diaSemana,
       '🚪 Bar abre 18h',
       '🎸 Show a partir das ' + pad2(hora.h) + 'h' + (hora.min ? pad2(hora.min) : ''),
-      '🎟️ Couvert R$15',
+      couvert ? '🎟️ Couvert R$' + couvert : null,
       '📍 ' + ENDERECO,
       '',
       CHAMADAS[opcao],
       '',
       hashtags(banda, arrobaBanda, perfil)
-    ].join('\n');
+    ].filter(function (linha) {
+      // Linha vazia é separador de parágrafo e fica. Nulo é linha que não existe
+      // neste show — o couvert, quando a banda não cobrou — e sai sem deixar buraco.
+      return linha !== null;
+    }).join('\n');
 
     saida[opcao] = corpo;
   });

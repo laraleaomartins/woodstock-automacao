@@ -30,7 +30,8 @@ gerador/          cópia de trabalho do gerador do kit (render3.js, tratar_foto.
 apps-script/      o cérebro: roda nos servidores do Google
 worker/           a oficina: roda no GitHub Actions
 tests/            simulador do ambiente Google e os testes
-docs/             ARQUITETURA.md, INSTALACAO.md, OPERACAO.md e as artes publicadas
+docs/             ARQUITETURA.md, INSTALACAO.md, OPERACAO.md, IMAGENS.md
+                  (como as fotos viram arte) e as artes publicadas
 ```
 
 ## A única mudança feita no kit

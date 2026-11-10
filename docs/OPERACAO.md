@@ -11,6 +11,46 @@
 Se você mudar o modo para **automático**, o passo 4 desaparece: as artes prontas já entram no
 calendário.
 
+## O que a banda preenche
+
+Além do nome, contato, data, horário, @ do Instagram, fotos e logotipo, a tela de
+inscrição pede mais duas coisas.
+
+### O valor do couvert
+
+A banda digita só o valor. Pode escrever do jeito que quiser — `15`, `R$ 15`,
+`15,00`, `20.00` — que o sistema entende e escreve certo na arte.
+
+**Deixando em branco, a arte sai sem couvert**, e a faixa de informação se
+reorganiza sozinha, sem buraco. É o certo para show de entrada franca: antes o
+valor estava escrito fixo como R$15 e a arte anunciava entrada paga em show que
+podia ser de graça.
+
+O mesmo valor vai para a arte **e para a legenda do post**. Os dois vêm do mesmo
+lugar de propósito: escrito fixo em um dos dois, a peça diria um preço e o texto
+diria outro — e quem lesse acreditaria na legenda.
+
+### A publicação em colaboração
+
+Marcando a opção, a banda escolhe até **três perfis** que vão aparecer como autores
+da publicação junto com o bar. O @ da banda já vem preenchido no primeiro campo,
+que é o caso mais comum; ela pode trocar ou acrescentar, por exemplo o perfil de um
+integrante.
+
+Três limites são do Instagram, não do sistema, e estão escritos na própria tela
+para a banda ler antes de marcar:
+
+- **Story não aceita colaboração.** Vale só para a publicação de feed; os stories
+  saem normais.
+- **O perfil convidado precisa aceitar.** O Instagram manda um convite, e a
+  colaboração só aparece publicamente depois que a banda aceita pelo aplicativo
+  dela. Publicar com sucesso não quer dizer que a colaboração já está no ar.
+- **Só perfil aberto pode ser marcado.** Banda com perfil fechado não entra.
+
+Se a API recusar um convite, o sistema **publica assim mesmo, sem a colaboração**, e
+manda um aviso para você fazer à mão — perder a publicação por causa de um convite
+recusado seria pior.
+
 ## O painel
 
 É um endereço só, que abre no celular também. O link completo (com a chave no fim) chega no
