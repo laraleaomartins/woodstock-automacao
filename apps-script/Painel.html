@@ -463,6 +463,7 @@ function baixarFotosTodas(id){
 
 // O arquivo é lido no navegador e conferido ANTES de subir: tipo, tamanho e
 // tamanho em pixels. Assim o erro aparece na hora, e não depois de uma espera.
+var QUEBRA = String.fromCharCode(10);
 var LADO_MINIMO = 600;
 var MB_MAXIMO = 15;
 
@@ -519,8 +520,18 @@ function confirmarTroca(id, indice, arquivo, dados, largura, altura){
     google.script.run
       .withSuccessHandler(function(){
         fecharJanela();
-        recado('Foto substituída. Use "Refazer todas" para a arte sair com ela.', 9000);
         carregar();
+        // A arte NÃO é refeita sozinha, e a oferta vem aqui para a decisão ser
+        // sua sem precisar procurar o botão. Dois motivos para não ser automático:
+        // trocando três fotos, refazer a cada troca rodaria a produção três vezes,
+        // e cada uma leva minutos; e refazer tira da fila as publicações já
+        // agendadas, o que não pode acontecer em silêncio.
+        if (confirm('Foto substituída.' + QUEBRA + QUEBRA +
+            'Refazer as artes agora com ela?' + QUEBRA + QUEBRA +
+            'Se for trocar mais fotos, troque todas primeiro e refaça uma vez só. ' +
+            'Refazer tira da fila as publicações já agendadas desta banda.')) {
+          chamar('painelRefazer', [id, '']);
+        }
       })
       .withFailureHandler(function(e){
         fecharJanela();

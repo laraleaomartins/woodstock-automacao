@@ -14,7 +14,24 @@ calendário.
 ## O que a banda preenche
 
 Além do nome, contato, data, horário, @ do Instagram, fotos e logotipo, a tela de
-inscrição pede mais duas coisas.
+inscrição pede mais duas coisas — e orienta a banda sobre as fotos.
+
+### Como a tela orienta sobre as fotos
+
+Em cima do campo das fotos há um quadro curto explicando o que faz uma foto render
+arte boa: **pessoa inteira ou do peito para cima**, **fundo simples** (parede lisa,
+céu, palco escuro), **luz na pessoa**, **nítida e grande** — e o que atrapalha:
+print de tela, foto de foto, muita gente atrás, filtro forte.
+
+Isso não é enfeite. A maior parte dos problemas que chegavam ao painel era foto
+ruim, e nenhum tratamento automático conserta uma pessoa que nem aparece.
+Explicando na hora do envio, o problema é evitado em vez de remediado.
+
+**O campo do couvert vem vazio, sem exemplo escrito dentro dele.** Havia um "15"
+cinza ali, como sugestão de formato, e sugestão em cinza claro dentro do campo se
+confunde com valor já preenchido — a banda podia enviar pensando que o preço do
+show era aquele. A explicação do formato ficou embaixo do campo, onde é texto e não
+parece resposta.
 
 ### O valor do couvert
 
@@ -132,6 +149,51 @@ refazer uma arte não troque o texto das outras sem ninguém pedir.
 Um botão por banda junta as seis peças num `.zip`. As artes vêm do endereço
 público — o mesmo arquivo que o Instagram recebeu —, e não da cópia no Drive, que
 pode ter falhado sem ninguém notar.
+
+### As fotos da banda, no painel
+
+Cada programação mostra as fotos que a banda enviou, uma por uma, com o nome do
+arquivo e um selo dizendo o que o tratamento automático fez com ela:
+
+- **ok** — separou a pessoa do fundo (ou usou a foto inteira, quando o fundo já
+  combinava) sem encontrar problema;
+- **duvidoso** — conseguiu, mas desconfiando: as medidas ficaram no limite, e vale
+  olhar a arte antes de aprovar;
+- **erro** — não conseguiu usar esta foto, e o motivo vem escrito ao lado;
+- **editada** — está valendo uma versão que você mandou, não a da banda;
+- **sem informação** — a arte foi produzida antes de o sistema passar a registrar
+  isso (programações de novembro de 2026 para trás).
+
+O selo diz o que a **máquina mediu**, não o que uma pessoa achou. O sistema sabe
+dizer que não conseguiu separar alguém do fundo; não sabe dizer que a arte ficou
+feia. Para isso existem os olhos de quem aprova.
+
+Três ações por foto:
+
+- **Baixar** traz a original em tamanho cheio, do jeito que a banda enviou (e
+  **Baixar as fotos** junta todas num `.zip`);
+- **Substituir** manda a sua versão editada no lugar. O navegador confere o arquivo
+  antes de subir: precisa ser PNG ou JPEG, ter no mínimo 600 pixels no lado menor e
+  no máximo 15 MB — assim o erro aparece na hora, e não depois da espera. Você vê a
+  imagem e confirma antes de valer;
+- **Desfazer** volta a usar a foto da banda.
+
+**A original nunca é apagada.** As três versões convivem: a que a banda enviou, o
+resultado do tratamento automático (refeito a cada produção) e a sua editada. E a
+regra de prioridade é uma só: **havendo editada, é ela que vai para a arte** —
+inclusive quando você clica em Refazer. Produzir de novo não desfaz uma edição
+manual; seria jogar fora o seu trabalho justamente quando o sistema está tentando
+de novo porque errou antes.
+
+Trocar uma foto **não refaz a arte sozinha**. Ao confirmar a troca o painel
+pergunta se quer refazer agora, e a escolha é sua por dois motivos concretos:
+trocando três fotos, refazer a cada troca rodaria a produção três vezes, e cada uma
+leva uns três minutos; e refazer **tira da fila as publicações já agendadas**
+daquela banda, o que não pode acontecer em silêncio. Trocando várias, troque todas
+e refaça uma vez só.
+
+**Histórico das fotos** registra cada troca e cada desfazer, com data, hora e qual
+foto — para quando a dúvida for "que imagem está valendo aqui, afinal".
 
 ### Relatórios em PDF
 
