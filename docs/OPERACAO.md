@@ -64,6 +64,71 @@ e-mail de instalação — guarde como favorito.
   stories, modo de operação e a trava de publicação. Nada disso exige mexer em código.
 - **Histórico** — o que aconteceu, em ordem, com os erros.
 
+A lista vem em **ordem de inscrição**, a mais nova no topo — não por data do show.
+É a ordem de quem trabalha no painel: o que acabou de entrar é o que precisa de
+atenção. Cada cartão mostra quando a banda se inscreveu.
+
+### Os três filtros
+
+São independentes e podem ser usados sozinhos ou juntos: **banda ou artista**,
+**data da inscrição** e **data do show**. Cada um fica na sua caixa, com o nome em
+cima e um "×" que limpa só ele. Usados juntos, eles cruzam — "banda X **e** que
+toca em dezembro".
+
+### Aprovar peça a peça
+
+Esperando aprovação, cada arte ganha uma marca "publicar" no próprio canto da
+imagem. Todas vêm marcadas; desmarque a que não ficou boa e clique em **Aprovar as
+marcadas**. Só as marcadas entram no calendário, e o que ficou de fora é registrado
+na programação e no e-mail.
+
+Antes isso era tudo ou nada: uma arte torta derrubava as outras cinco junto.
+
+### Refazer
+
+Há um **Refazer** embaixo de cada arte e um **Refazer todas**.
+
+Uma coisa importante sobre esse botão: **repetir não adianta**. O recorte é
+determinístico — a mesma foto produz sempre a mesma arte. Por isso cada pedido de
+refazer tenta um **caminho diferente**, nesta ordem:
+
+1. inverter a decisão de recortar (o erro mais comum: fundo que parecia neutro e
+   não era, ou o contrário);
+2. recortar com outro recortador, que erra de forma diferente;
+3. usar a foto inteira, dissolvida, sem tentar recortar.
+
+Da quarta vez em diante volta ao começo: já se esgotou o que dá para variar sem
+inventar.
+
+As seis peças são refeitas juntas, mesmo pedindo por uma só — elas saem do mesmo
+tratamento das fotos, e não existe refazer uma sem refazer o tratamento. O painel
+avisa isso antes de confirmar.
+
+### Baixar todas
+
+Um botão por banda junta as seis peças num `.zip`. As artes vêm do endereço
+público — o mesmo arquivo que o Instagram recebeu —, e não da cópia no Drive, que
+pode ter falhado sem ninguém notar.
+
+### Relatórios em PDF
+
+**Semanal**, **mensal** e **trimestral**, no desenho da prestação de contas da
+casa: capa com a marca e os números, resumo com a tabela do que foi entregue, e uma
+página por show com as peças em miniatura e o que aconteceu com cada publicação.
+
+O período é o do **calendário corrente** — a semana de segunda a domingo, o mês do
+dia 1 ao último, o trimestre inteiro —, e não "os últimos N dias". A diferença
+importa: a agenda de uma casa de show é feita para a frente, e contando para trás
+um relatório tirado no dia 10 não encontra os shows do dia 15 e sai vazio.
+
+Medido: um relatório mensal com 14 shows e 84 peças tem 16 páginas e 1,8 MB.
+
+**A capa é clara, e não escura como o documento que serviu de modelo.** Não é
+escolha de gosto: o conversor de PDF do Google escurece toda cor clara da página em
+cerca de um terço — branco sai cinza-chumbo, vermelho claro sai marrom —,
+provavelmente para que texto branco não suma em papel branco. Não há como
+compensar, porque não existe cor mais clara que o branco para pedir.
+
 ## A trava de segurança
 
 `PUBLICAR_DE_VERDADE` começa em **NAO**. Com ela assim, o sistema faz tudo menos enviar para o

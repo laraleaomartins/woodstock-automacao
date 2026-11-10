@@ -234,6 +234,40 @@ melhor que um integrante faltando.
 
 ---
 
+## 5.1. O pedaço solto
+
+Um microfone no pedestal, atrás do músico: o recortador reconhece o microfone — ele
+é um objeto —, mas o pedestal se perde no escuro do palco. Sobra o microfone
+boiando no ar, ao lado da pessoa, e na arte isso salta aos olhos.
+
+A conta é de ilhas: cada pedaço desligado do resto é medido, e some quem for
+pequeno demais perto do maior. O limite existe para **não apagar gente**: numa foto
+de dois músicos afastados, cada um é uma ilha separada, e a menor delas ainda é
+grande. Microfone, baqueta solta e canto de equipamento ficam em torno de 1% do
+maior; uma pessoa, mesmo pequena no quadro, passa de 15%.
+
+---
+
+## 5.2. Refazer tenta um caminho diferente
+
+O painel tem um **Refazer** por arte. Ele não repete o mesmo cálculo — isso
+devolveria a mesma peça, porque o recorte é determinístico. Cada pedido troca a
+decisão com mais chance de ter sido a culpada, nesta ordem, que é a ordem em que
+elas erram:
+
+1. **inverter a decisão de recortar** — fundo que parecia neutro e não era, ou o
+   contrário. É o caso mais comum;
+2. **trocar o recortador** — o outro modelo erra de forma diferente;
+3. **usar a foto inteira**, dissolvida, sem tentar recortar — o caminho que nunca
+   produz silhueta errada, porque não faz silhueta nenhuma.
+
+Da quarta vez em diante volta ao começo: esgotou-se o que dá para variar sem
+inventar, e insistir seria enganar quem clicou.
+
+As seis peças saem do mesmo tratamento das fotos, então refazer uma refaz todas.
+
+---
+
 ## 6.1. Cada foto é recortada num processo próprio
 
 Isto não é detalhe de arrumação: é o que faz a produção terminar.
