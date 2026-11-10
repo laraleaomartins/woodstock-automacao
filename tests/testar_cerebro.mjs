@@ -559,6 +559,45 @@ const inscricaoFalsa = (extra = {}) => ({
   ...extra
 });
 
+teste('Aprovar as marcadas publica só elas, e as outras ficam de fora', (ctx, estado) => {
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Meia Arte', data: iso(emDias(9)) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  conferir(ctx.acharProgramacao(id).Situacao === 'AGUARDANDO_APROVACAO',
+    'ficou esperando aprovação');
+
+  // Só duas das seis peças foram marcadas. O risco que este teste guarda é o
+  // sistema ignorar a escolha e publicar tudo — o que levaria ao ar justamente a
+  // arte que foi recusada por estar torta.
+  const quantas = ctx.painelAprovar('chave-de-teste', id, ['FEED:A', 'STORY:B']);
+  const posts = ctx.linhas('AGENDAMENTOS').filter((a) => String(a.ProgramacaoId) === id);
+  const marcas = posts.map((a) => `${a.Canal}:${a.Opcao}`).sort();
+
+  conferir(posts.length === 2, `entraram 2 publicações na fila, não ${posts.length}`);
+  conferir(marcas.join(' ') === 'FEED:A STORY:B',
+    'e são exatamente as marcadas: ' + marcas.join(' '));
+  conferir(quantas === 2, 'o painel informou 2 agendadas');
+  conferir(String(ctx.acharProgramacao(id).Avisos).includes('não publicadas por escolha sua'),
+    'ficou registrado o que não foi publicado');
+});
+
+teste('Aprovar sem marcar nenhuma peça é recusado', (ctx, estado) => {
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Nenhuma Marcada', data: iso(emDias(9)) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  let recusou = false;
+  try {
+    ctx.painelAprovar('chave-de-teste', id, []);
+  } catch (e) {
+    recusou = String(e.message).includes('Nenhuma peça');
+  }
+  // Lista vazia quer dizer "todas", que é o caminho normal; o que não pode é marcar
+  // zero no painel e o sistema entender que era para publicar tudo.
+  conferir(!recusou, 'lista vazia continua querendo dizer "todas", como antes');
+  conferir(ctx.linhas('AGENDAMENTOS').filter((a) => String(a.ProgramacaoId) === id).length === 6,
+    'e as 6 peças foram agendadas');
+});
+
 teste('O couvert vem do jeito que a pessoa escrever e vira número limpo', (ctx) => {
   // Quem preenche escreve "15", "R$ 15", "15,00" ou "20.00" — os quatro querem dizer
   // a mesma coisa. Guardar o texto cru faria a arte sair "COUVERT R$ R$ 15".

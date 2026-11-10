@@ -235,7 +235,51 @@ function salvarArtesNoDrive(prog, artes) {
 }
 
 /** Aprovação pelo painel. */
-function aprovarProgramacao(programacaoId) {
+/**
+ * Separa as peças marcadas para publicação das que ficam de fora.
+ *
+ * `escolhidas` é uma lista no formato "FEED:A", "STORY:C". Lista vazia quer dizer
+ * "todas" — é o caminho normal, e é como a aprovação funcionava antes de existir
+ * escolha. O resto do conteúdo das artes (a lista de arquivos recebidos, por
+ * exemplo) é preservado, senão refazer as artes depois deixaria de funcionar.
+ */
+function somenteAsPecas(artes, escolhidas) {
+  var lista = [].concat(escolhidas || []).filter(function (c) { return String(c).trim(); });
+  if (!lista.length) return { usadas: artes, deixadas: [] };
+
+  var marcadas = {};
+  lista.forEach(function (c) { marcadas[String(c).toUpperCase()] = true; });
+
+  var usadas = {};
+  var deixadas = [];
+  Object.keys(artes).forEach(function (k) {
+    if (k !== 'FEED' && k !== 'STORY') usadas[k] = artes[k];
+  });
+  ['FEED', 'STORY'].forEach(function (canal) {
+    usadas[canal] = {};
+    Object.keys(artes[canal] || {}).forEach(function (opcao) {
+      if (marcadas[canal + ':' + opcao]) {
+        usadas[canal][opcao] = artes[canal][opcao];
+      } else {
+        deixadas.push((canal === 'FEED' ? 'publicação' : 'story') + ' ' + opcao);
+      }
+    });
+  });
+  return { usadas: usadas, deixadas: deixadas };
+}
+
+function quantasPecas(artes) {
+  return Object.keys(artes.FEED || {}).length + Object.keys(artes.STORY || {}).length;
+}
+
+/**
+ * Aprova a programação. Com `escolhidas`, publica só as peças marcadas.
+ *
+ * Existe para o caso em que uma das seis peças saiu torta: antes, reprovar era
+ * tudo ou nada, e uma arte ruim derrubava as outras cinco junto. As que ficam de
+ * fora são registradas, para depois dar para saber o que não foi publicado e por quê.
+ */
+function aprovarProgramacao(programacaoId, escolhidas) {
   return comTrava('aprovar', function () {
     var prog = acharProgramacao(programacaoId);
     if (!prog) throw new Error('Programação não encontrada.');
@@ -244,12 +288,32 @@ function aprovarProgramacao(programacaoId) {
     }
     var artes = JSON.parse(prog.Artes || '{}');
     var legendas = JSON.parse(prog.Legendas || '{}');
-    var postos = agendarProgramacao(prog, artes, legendas);
+
+    var escolha = somenteAsPecas(artes, escolhidas);
+    if (!quantasPecas(escolha.usadas)) {
+      throw new Error('Nenhuma peça foi marcada para publicar. Marque pelo menos uma, ' +
+        'ou use Reprovar se nenhuma serve.');
+    }
+
+    var postos = agendarProgramacao(prog, escolha.usadas, legendas);
     mudarSituacao(programacaoId, SIT.AGENDADA);
-    registrar('INFO', programacaoId, 'APROVADA', postos.length + ' publicações agendadas.');
+
+    var recado = postos.length + ' publicações agendadas.';
+    if (escolha.deixadas.length) {
+      recado += ' Fora: ' + escolha.deixadas.join(', ') + '.';
+      gravarCampos(ABA.PROGRAMACOES, prog._linha, {
+        Avisos: (String(prog.Avisos || '') + ' | não publicadas por escolha sua: ' +
+          escolha.deixadas.join(', ')).slice(0, 900)
+      });
+    }
+    registrar('INFO', programacaoId, 'APROVADA', recado);
     notificar('Agendamento criado: ' + prog.Banda,
       'Você aprovou as artes de ' + prog.Banda + ' e ' + postos.length +
-      ' publicações entraram no calendário.\n\n' + listaDeHorarios(postos) + '\n' + linkPainel(),
+      ' publicações entraram no calendário.\n\n' +
+      (escolha.deixadas.length
+        ? 'Ficaram de fora, porque você não marcou: ' + escolha.deixadas.join(', ') + '.\n\n'
+        : '') +
+      listaDeHorarios(postos) + '\n' + linkPainel(),
       programacaoId);
     return postos.length;
   });

@@ -29,6 +29,20 @@
   .artes img{width:104px;border-radius:6px;border:1px solid var(--borda);display:block;background:#000}
   .artes figcaption{font-size:11px;color:var(--fraco);text-align:center;margin-top:4px}
   .acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+  .filtros input[type=search]{flex:1;min-width:200px;background:#000;color:var(--texto);
+    border:1px solid var(--borda);border-radius:7px;padding:8px 12px;font-size:13px}
+  .filtros input[type=date]{background:#000;color:var(--texto);border:1px solid var(--borda);
+    border-radius:7px;padding:7px 9px;font-size:13px;margin-left:5px}
+  .filtros .fdata{color:var(--fraco);font-size:13px}
+  .filtros .sep{width:1px;height:22px;background:var(--borda);margin:0 4px}
+  /* A marca de escolher a peça fica POR CIMA da arte, no canto: fora dela, numa
+     lista separada, obrigaria a olhar a arte e procurar a linha dela embaixo. */
+  figure{position:relative}
+  .escolher{position:absolute;top:6px;left:6px;z-index:2;display:flex;align-items:center;
+    gap:5px;background:rgba(0,0,0,.72);border:1px solid var(--borda);border-radius:6px;
+    padding:3px 7px;font-size:11px;color:var(--texto);cursor:pointer}
+  .escolher input{margin:0;cursor:pointer}
   button.b{border:1px solid var(--borda);background:#000;color:var(--texto);padding:8px 12px;border-radius:7px;cursor:pointer;font-size:13px}
   button.b:hover{border-color:var(--vermelho)}
   button.b.forte{background:var(--vermelho);border-color:var(--vermelho);color:#fff;font-weight:600}
@@ -63,6 +77,18 @@
   <button data-aba="historico">Histórico</button>
 </nav>
 
+<div id="barraFiltro" class="filtros">
+  <input type="search" id="fBanda" placeholder="Filtrar por banda ou artista" oninput="desenharProgramacoes()">
+  <label class="fdata">de <input type="date" id="fDe" onchange="desenharProgramacoes()"></label>
+  <label class="fdata">até <input type="date" id="fAte" onchange="desenharProgramacoes()"></label>
+  <button class="b" onclick="limparFiltros()">Limpar</button>
+  <span class="sep"></span>
+  <span class="meta">Relatório em PDF:</span>
+  <button class="b" onclick="baixarRelatorio('SEMANAL')">Semanal</button>
+  <button class="b" onclick="baixarRelatorio('MENSAL')">Mensal</button>
+  <button class="b" onclick="baixarRelatorio('TRIMESTRAL')">Trimestral</button>
+  <span class="meta" id="contagem"></span>
+</div>
 <div id="programacoes"></div>
 <div id="calendario" hidden></div>
 <div id="config" hidden></div>
@@ -124,26 +150,62 @@ function desenhar(){
   desenharProgramacoes(); desenharCalendario(); desenharConfig(); desenharHistorico();
 }
 
+// As programações chegam do servidor já em ordem de data, da mais recente para a
+// mais antiga. A lista só é filtrada aqui — a ordem não é mexida.
+function programacoesFiltradas(){
+  var texto = (document.getElementById('fBanda').value || '').trim().toLowerCase();
+  var de = document.getElementById('fDe').value;
+  var ate = document.getElementById('fAte').value;
+  return dados.programacoes.filter(function(p){
+    if (texto && (p.banda + ' ' + p.instagram).toLowerCase().indexOf(texto) < 0) return false;
+    if (de && p.dataShowISO < de) return false;
+    if (ate && p.dataShowISO > ate) return false;
+    return true;
+  });
+}
+
+function limparFiltros(){
+  ['fBanda','fDe','fAte'].forEach(function(id){ document.getElementById(id).value = ''; });
+  desenharProgramacoes();
+}
+
 function desenharProgramacoes(){
   var alvo = document.getElementById('programacoes');
   if (!dados.programacoes.length){
+    document.getElementById('contagem').textContent = '';
     alvo.innerHTML = '<div class="vazio">Nenhuma banda inscrita ainda.<br>Assim que alguém ' +
       'preencher o formulário, aparece aqui.</div>';
     return;
   }
-  alvo.innerHTML = dados.programacoes.map(function(p){
+  var lista = programacoesFiltradas();
+  document.getElementById('contagem').textContent =
+    lista.length === dados.programacoes.length
+      ? lista.length + ' shows'
+      : lista.length + ' de ' + dados.programacoes.length + ' shows';
+  if (!lista.length){
+    alvo.innerHTML = '<div class="vazio">Nenhum show com esse filtro.</div>';
+    return;
+  }
+  alvo.innerHTML = lista.map(function(p){
     var pecas = [];
     ['A','B','C'].forEach(function(o){
-      if (p.feed[o]) pecas.push({u:p.feed[o], t:'feed ' + o});
-      if (p.story[o]) pecas.push({u:p.story[o], t:'story ' + o});
+      if (p.feed[o]) pecas.push({u:p.feed[o], t:'publicação ' + o, k:'FEED:' + o});
+      if (p.story[o]) pecas.push({u:p.story[o], t:'story ' + o, k:'STORY:' + o});
     });
+    // Esperando aprovação, cada arte ganha sua própria marca: se uma saiu torta,
+    // só ela fica de fora e as outras seguem. Fora da aprovação não há o que
+    // marcar, e a galeria é só galeria.
+    var escolher = p.situacao === 'AGUARDANDO_APROVACAO';
     var galeria = pecas.length ? '<div class="artes">' + pecas.map(function(x){
-      return '<figure><a href="'+esc(x.u)+'" target="_blank"><img src="'+esc(x.u)+'" loading="lazy" alt="'+esc(x.t)+'"></a>' +
+      return '<figure>' +
+             (escolher ? '<label class="escolher"><input type="checkbox" checked ' +
+                'data-prog="'+esc(p.id)+'" data-peca="'+esc(x.k)+'">publicar</label>' : '') +
+             '<a href="'+esc(x.u)+'" target="_blank"><img src="'+esc(x.u)+'" loading="lazy" alt="'+esc(x.t)+'"></a>' +
              '<figcaption>'+esc(x.t)+'</figcaption></figure>'; }).join('') + '</div>' : '';
 
     var acoes = [];
     if (p.situacao === 'AGUARDANDO_APROVACAO'){
-      acoes.push(bt('forte','Aprovar e agendar','painelAprovar',p.id));
+      acoes.push('<button class="b forte" onclick="aprovarMarcadas(\''+p.id+'\')">Aprovar as marcadas</button>');
       acoes.push(bt('','Reprovar','reprovar',p.id));
     }
     if (['AGENDADA','APROVADA'].indexOf(p.situacao)>=0) acoes.push(bt('','Pausar','painelPausar',p.id));
@@ -158,6 +220,7 @@ function desenharProgramacoes(){
       opt('', '(modo global)', p.modo) + opt('AUTOMATICO','automático',p.modo) +
       opt('APROVACAO','com aprovação',p.modo) + '</select>');
     if (['CANCELADA','CONCLUIDA'].indexOf(p.situacao)<0) acoes.push(bt('','Cancelar tudo','cancelar',p.id));
+    if (pecas.length) acoes.push('<button class="b" onclick="baixarTodas(\''+p.id+'\')">Baixar todas</button>');
     if (p.pastaUrl) acoes.push('<a class="b" style="text-decoration:none;display:inline-block" href="'+esc(p.pastaUrl)+'" target="_blank">Arquivos no Drive</a>');
 
     return '<div class="cartao">' +
@@ -169,6 +232,57 @@ function desenharProgramacoes(){
       (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +
       galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
   }).join('');
+}
+
+// O Apps Script devolve arquivo em base64 — não dá para apontar um link direto
+// para ele. Aqui ele vira um arquivo de verdade dentro do navegador e o download
+// começa sozinho, sem passar por servidor nenhum.
+function baixarBase64(arquivo){
+  var cru = atob(arquivo.conteudo);
+  var bytes = new Uint8Array(cru.length);
+  for (var i = 0; i < cru.length; i++) bytes[i] = cru.charCodeAt(i);
+  var url = URL.createObjectURL(new Blob([bytes], {type: arquivo.tipo}));
+  var a = document.createElement('a');
+  a.href = url; a.download = arquivo.nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+}
+
+function aprovarMarcadas(id){
+  var marcadas = [].slice.call(
+    document.querySelectorAll('input[type=checkbox][data-prog="' + id + '"]'));
+  var escolhidas = marcadas.filter(function(c){ return c.checked; })
+                           .map(function(c){ return c.getAttribute('data-peca'); });
+  if (!escolhidas.length){
+    recado('Marque pelo menos uma peça para publicar, ou use Reprovar.', 6000);
+    return;
+  }
+  var fora = marcadas.length - escolhidas.length;
+  if (fora && !confirm(fora + ' peça(s) não vão ser publicadas. Continuar?')) return;
+  chamar('painelAprovar', [id, escolhidas]);
+}
+
+function baixarTodas(id){
+  recado('Juntando as artes…', 20000);
+  google.script.run
+    .withSuccessHandler(function(z){
+      baixarBase64(z);
+      recado(z.quantas + ' artes baixadas' +
+        (z.falhas && z.falhas.length ? ' (' + z.falhas.length + ' falharam)' : '') + '.', 6000);
+    })
+    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .painelBaixarArtes(CHAVE, id);
+}
+
+function baixarRelatorio(periodo){
+  recado('Montando o relatório… as artes entram embutidas, então demora um pouco.', 60000);
+  google.script.run
+    .withSuccessHandler(function(r){
+      baixarBase64(r);
+      recado('Relatório pronto: ' + r.shows + ' shows, ' + r.kb + ' KB.', 8000);
+    })
+    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .painelRelatorio(CHAVE, periodo);
 }
 
 function bt(classe, rotulo, fn, id){

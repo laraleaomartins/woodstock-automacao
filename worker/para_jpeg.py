@@ -13,6 +13,14 @@ from PIL import Image
 
 LIMITE_BYTES = 7 * 1024 * 1024
 
+# Largura da miniatura que acompanha cada peça. Ela existe para o relatório em PDF:
+# ali a arte aparece pequena, só para se reconhecer o que foi publicado, e embutir
+# a peça inteira no arquivo faria um relatório trimestral passar de 30 MB — grande
+# demais para o Apps Script montar e para alguém abrir no celular. Gerada aqui, e
+# não na hora do relatório, porque aqui já existe uma ferramenta que redimensiona
+# imagem; no Apps Script não existe.
+LARGURA_MINIATURA = 260
+
 
 def converter(origem, destino):
     im = Image.open(origem)
@@ -29,6 +37,15 @@ def converter(origem, destino):
     return qualidade
 
 
+def miniatura(origem, destino, largura=LARGURA_MINIATURA):
+    """Versão pequena da peça, para o relatório. Ver LARGURA_MINIATURA."""
+    im = Image.open(origem).convert("RGB")
+    altura = max(1, round(im.height * largura / im.width))
+    im.resize((largura, altura), Image.LANCZOS).save(
+        destino, "JPEG", quality=76, optimize=True)
+    return os.path.getsize(destino)
+
+
 if __name__ == "__main__":
     pasta_png, pasta_jpeg = sys.argv[1], sys.argv[2]
     os.makedirs(pasta_jpeg, exist_ok=True)
@@ -37,5 +54,8 @@ if __name__ == "__main__":
             continue
         saida = os.path.join(pasta_jpeg, nome[:-4] + ".jpg")
         q = converter(os.path.join(pasta_png, nome), saida)
-        print("  %s  (qualidade %d, %.1f MB)" % (
-            os.path.basename(saida), q, os.path.getsize(saida) / 1048576))
+        mini = os.path.join(pasta_jpeg, nome[:-4] + "_mini.jpg")
+        bytes_mini = miniatura(saida, mini)
+        print("  %s  (qualidade %d, %.1f MB; miniatura %d KB)" % (
+            os.path.basename(saida), q, os.path.getsize(saida) / 1048576,
+            round(bytes_mini / 1024)))

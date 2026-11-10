@@ -87,7 +87,218 @@ function painelCarregar(chave) {
   return { programacoes: progs, agendamentos: ags, config: conf, logs: logs, estado: estadoDoSistema() };
 }
 
-function painelAprovar(chave, id) { exigirChave(chave); return aprovarProgramacao(id); }
+/**
+ * Aprova a programação, publicando só as peças marcadas.
+ *
+ * Sem marcação nenhuma, aprova tudo — que é como funcionava antes e continua sendo
+ * o caminho normal. Marcando, só o que foi marcado vai para o calendário: se uma
+ * das seis peças saiu torta, ela fica de fora e as outras cinco seguem, em vez de
+ * reprovar a banda inteira por causa de uma arte.
+ */
+function painelAprovar(chave, id, pecas) {
+  exigirChave(chave);
+  return aprovarProgramacao(id, pecas);
+}
+
+/**
+ * Junta as artes de uma banda num arquivo .zip só, para baixar de uma vez.
+ *
+ * As artes são buscadas do endereço público, e não do Drive: é o mesmo arquivo que
+ * o Instagram recebeu, e não depende de a cópia para o Drive ter dado certo.
+ */
+function painelBaixarArtes(chave, id) {
+  exigirChave(chave);
+  var prog = acharProgramacao(id);
+  if (!prog) throw new Error('Programação não encontrada.');
+
+  var artes = {};
+  try { artes = JSON.parse(prog.Artes || '{}'); } catch (x) { artes = {}; }
+
+  var arquivos = [];
+  var falhas = [];
+  ['FEED', 'STORY'].forEach(function (canal) {
+    Object.keys(artes[canal] || {}).sort().forEach(function (opcao) {
+      var nome = id + '_OPCAO-' + opcao + '_' + (canal === 'FEED' ? 'feed' : 'story') + '.jpg';
+      try {
+        var r = UrlFetchApp.fetch(artes[canal][opcao], { muteHttpExceptions: true });
+        if (r.getResponseCode() !== 200) throw new Error('resposta ' + r.getResponseCode());
+        arquivos.push(r.getBlob().setName(nome));
+      } catch (e) {
+        falhas.push(nome + ' (' + e.message + ')');
+      }
+    });
+  });
+
+  if (!arquivos.length) {
+    throw new Error('Não consegui baixar nenhuma arte desta banda.' +
+      (falhas.length ? ' Motivo: ' + falhas[0] : ''));
+  }
+  var zip = Utilities.zip(arquivos, id + '_artes.zip');
+  return {
+    nome: zip.getName(),
+    tipo: 'application/zip',
+    conteudo: Utilities.base64Encode(zip.getBytes()),
+    quantas: arquivos.length,
+    falhas: falhas
+  };
+}
+// Largura da miniatura dentro do PDF, em pixels. É o que decide o peso do arquivo:
+// cada arte vai embutida dentro dele, porque um PDF que aponta para imagens na
+// internet aparece vazio para quem abrir sem conexão — ou no dia em que o endereço
+// sair do ar. Em 220 pixels dá para reconhecer a arte e conferir o que foi
+// publicado, que é para o que o relatório serve; em tamanho cheio, um trimestre
+// viraria um arquivo de dezenas de megabytes.
+var LARGURA_MINIATURA = 220;
+
+var PERIODOS = {
+  SEMANAL: { dias: 7, nome: 'semanal' },
+  MENSAL: { dias: 30, nome: 'mensal' },
+  TRIMESTRAL: { dias: 92, nome: 'trimestral' }
+};
+
+/**
+ * Monta o relatório do período em PDF, com as artes em miniatura e o que aconteceu
+ * com cada publicação.
+ *
+ * O recorte é pela data do show, não pela data da publicação: é assim que a casa
+ * pensa a agenda, e é o que permite comparar um mês com o outro.
+ */
+function painelRelatorio(chave, periodo) {
+  exigirChave(chave);
+  var faixa = PERIODOS[String(periodo || '').toUpperCase()];
+  if (!faixa) throw new Error('Período desconhecido: ' + periodo);
+
+  var ate = new Date();
+  var de = new Date(ate.getTime() - faixa.dias * 24 * 3600 * 1000);
+
+  var progs = linhas(ABA.PROGRAMACOES).filter(function (p) {
+    var d = paraData(p.DataShow);
+    return d && !isNaN(d.getTime()) && d >= de && d <= ate;
+  }).sort(function (a, b) {
+    return paraData(b.DataShow).getTime() - paraData(a.DataShow).getTime();
+  });
+
+  var posts = linhas(ABA.AGENDAMENTOS);
+  var html = montarHtmlDoRelatorio(faixa, de, ate, progs, posts);
+  var pdf = Utilities.newBlob(html, 'text/html', 'relatorio.html')
+    .getAs('application/pdf')
+    .setName('woodstock_' + faixa.nome + '_' + fmt(ate, 'yyyy-MM-dd') + '.pdf');
+
+  registrar('INFO', '', 'RELATORIO', faixa.nome + ': ' + progs.length + ' shows, ' +
+    Math.round(pdf.getBytes().length / 1024) + ' KB');
+  return {
+    nome: pdf.getName(),
+    tipo: 'application/pdf',
+    conteudo: Utilities.base64Encode(pdf.getBytes()),
+    shows: progs.length,
+    kb: Math.round(pdf.getBytes().length / 1024)
+  };
+}
+
+/**
+ * Traz a arte já pequena, para ser embutida no PDF.
+ *
+ * A oficina publica, ao lado de cada peça, uma versão reduzida com o sufixo
+ * `_mini`. Medido: a peça inteira tem 225 KB e a miniatura, 13 KB — num relatório
+ * trimestral isso é a diferença entre 2 MB e mais de 30, que o Apps Script nem
+ * conseguiria montar.
+ *
+ * Artes produzidas antes de a miniatura existir não têm o arquivo reduzido; nesse
+ * caso entra a peça inteira, que pesa mas aparece. Relatório sem as artes seria
+ * pior que relatório pesado.
+ */
+function miniaturaEmbutida(url) {
+  var pequena = String(url).replace(/\.jpg$/i, '_mini.jpg');
+  var tentativas = pequena === url ? [url] : [pequena, url];
+  for (var i = 0; i < tentativas.length; i++) {
+    try {
+      var r = UrlFetchApp.fetch(tentativas[i], { muteHttpExceptions: true });
+      if (r.getResponseCode() === 200) {
+        return 'data:image/jpeg;base64,' + Utilities.base64Encode(r.getBlob().getBytes());
+      }
+    } catch (e) { /* tenta a próxima */ }
+  }
+  return '';
+}
+
+function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
+  var porProg = {};
+  posts.forEach(function (a) {
+    var k = String(a.ProgramacaoId);
+    (porProg[k] = porProg[k] || []).push(a);
+  });
+
+  var publicadas = 0;
+  var falhas = 0;
+  posts.forEach(function (a) {
+    var d = new Date(a.QuandoISO);
+    if (d >= de && d <= ate) {
+      if (String(a.Situacao) === 'PUBLICADO') publicadas++;
+      if (String(a.Situacao) === 'FALHA') falhas++;
+    }
+  });
+
+  var blocos = progs.map(function (p) {
+    var artes = {};
+    try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
+
+    var minis = [];
+    ['FEED', 'STORY'].forEach(function (canal) {
+      Object.keys(artes[canal] || {}).sort().forEach(function (opcao) {
+        var dados = miniaturaEmbutida(artes[canal][opcao]);
+        if (dados) {
+          minis.push('<figure><img src="' + dados + '"><figcaption>' +
+            (canal === 'FEED' ? 'publicação' : 'story') + ' ' + opcao + '</figcaption></figure>');
+        }
+      });
+    });
+
+    var meus = (porProg[String(p.ID)] || []).sort(function (x, y) {
+      return String(x.QuandoISO) < String(y.QuandoISO) ? -1 : 1;
+    });
+    var linhasPost = meus.map(function (a) {
+      return '<tr><td>' + fmt(new Date(a.QuandoISO), 'dd/MM HH:mm') + '</td><td>' +
+        (String(a.Canal) === 'FEED' ? 'publicação' : 'story') + ' ' + a.Opcao + '</td><td>' +
+        a.Situacao + '</td><td>' + String(a.Erro || '') + '</td></tr>';
+    }).join('');
+
+    return '<section>' +
+      '<h2>' + p.Banda + '</h2>' +
+      '<p class="sub">' + fmt(paraData(p.DataShow), 'dd/MM/yyyy') + ' · ' + p.DiaSemana +
+      ' · ' + horaTexto(p.HoraShow) + ' · ' + p.InstagramBanda +
+      ' · situação: ' + p.Situacao + '</p>' +
+      (minis.length ? '<div class="artes">' + minis.join('') + '</div>'
+        : '<p class="sub">Sem artes guardadas.</p>') +
+      (linhasPost
+        ? '<table><tr><th>quando</th><th>peça</th><th>situação</th><th>erro</th></tr>' +
+          linhasPost + '</table>'
+        : '<p class="sub">Nenhuma publicação agendada.</p>') +
+      '</section>';
+  }).join('');
+
+  return '<!doctype html><html><head><meta charset="utf-8"><style>' +
+    'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:26px}' +
+    'h1{font-size:21px;margin:0 0 2px}h2{font-size:15px;margin:0 0 2px}' +
+    '.cab{border-bottom:2px solid #d6121c;padding-bottom:10px;margin-bottom:16px}' +
+    '.sub{color:#555;font-size:11px;margin:0 0 8px}' +
+    'section{page-break-inside:avoid;border-bottom:1px solid #ddd;padding:12px 0}' +
+    '.artes{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}' +
+    'figure{margin:0;width:' + LARGURA_MINIATURA + 'px}' +
+    'img{width:100%;border:1px solid #ccc}' +
+    'figcaption{font-size:10px;color:#666;text-align:center;padding-top:2px}' +
+    'table{border-collapse:collapse;width:100%;font-size:11px}' +
+    'th,td{border:1px solid #ddd;padding:4px 6px;text-align:left}' +
+    'th{background:#f3f3f3}' +
+    '</style></head><body>' +
+    '<div class="cab"><h1>Woodstock Rock Bar — relatório ' + faixa.nome + '</h1>' +
+    '<p class="sub">Shows de ' + fmt(de, 'dd/MM/yyyy') + ' a ' + fmt(ate, 'dd/MM/yyyy') +
+    ' · ' + progs.length + ' shows · ' + publicadas + ' publicações feitas' +
+    (falhas ? ' · ' + falhas + ' falharam' : '') +
+    ' · gerado em ' + fmt(new Date(), 'dd/MM/yyyy HH:mm') + '</p></div>' +
+    (blocos || '<p>Nenhum show neste período.</p>') +
+    '</body></html>';
+}
+
 function painelReprovar(chave, id, motivo) { exigirChave(chave); return reprovarProgramacao(id, motivo); }
 function painelRefazer(chave, id) { exigirChave(chave); return refazerArtes(id); }
 function painelPausar(chave, id) { exigirChave(chave); return pausarProgramacao(id); }
