@@ -24,6 +24,22 @@ var CHAMADAS = {
   C: 'Salva o post pra não esquecer e vem com a gente.'
 };
 
+/**
+ * Um número estável tirado de um texto, para escolher entre alternativas.
+ *
+ * Não é sorteio: sorteio de verdade faria a mesma programação escrever uma legenda
+ * diferente a cada vez, e refazer uma arte trocaria o texto das outras sem ninguém
+ * pedir. Aqui, o mesmo identificador devolve sempre o mesmo número, e
+ * identificadores diferentes caem em lugares diferentes da lista.
+ */
+function assinaturaDoTexto(texto) {
+  var soma = 0;
+  for (var i = 0; i < texto.length; i++) {
+    soma = (soma * 31 + texto.charCodeAt(i)) % 100000;
+  }
+  return soma;
+}
+
 function montarLegendas(prog) {
   var data = paraData(prog.DataShow);
   var hora = paraHora(prog.HoraShow);
@@ -46,7 +62,20 @@ function montarLegendas(prog) {
 
   var saida = {};
   ['A', 'B', 'C'].forEach(function (opcao, i) {
-    var abertura = ABERTURAS[opcao][i % ABERTURAS[opcao].length]
+    // Qual das frases de abertura cada peça usa.
+    //
+    // Antes era `i`, o número do layout: o A pegava sempre a primeira, o B sempre a
+    // segunda, o C sempre a terceira. As nove frases estavam escritas, mas só três
+    // eram usadas — e as MESMAS três em todo show. Quem acompanha o perfil via
+    // "Rasgou a semana: FULANO no palco do Woodstock" toda semana, só trocando o
+    // nome.
+    //
+    // Agora o ponto de partida vem do identificador da programação, então shows
+    // diferentes começam em lugares diferentes da lista. E é estável: a mesma
+    // programação, refeita, escreve a mesma legenda — senão refazer uma arte
+    // trocaria o texto de todas as outras sem ninguém pedir.
+    var giro = (assinaturaDoTexto(String(prog.ID)) + i) % ABERTURAS[opcao].length;
+    var abertura = ABERTURAS[opcao][giro]
       .replace('{BANDA}', banda).replace('{DIA_CURTO}', diaCurto);
 
     var corpo = [

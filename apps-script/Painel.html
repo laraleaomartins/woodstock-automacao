@@ -378,14 +378,41 @@ function mudarShow(id){
 
 function verLegendas(id){
   var p = dados.programacoes.filter(function(x){return x.id===id;})[0];
-  var html = '<h3 style="margin-bottom:10px">Legendas — '+esc(p.banda)+'</h3>';
+  var html = '<h3 style="margin-bottom:4px">Legendas — '+esc(p.banda)+'</h3>' +
+    '<p class="meta" style="margin-bottom:10px">Cada legenda acompanha a publicação ' +
+    'daquele layout. Story não leva legenda — o Instagram não aceita. Pode reescrever ' +
+    'à vontade e salvar; se as publicações já estiverem na fila, o texto delas também ' +
+    'é trocado.</p>';
   ['A','B','C'].forEach(function(o){
     if (!p.legendas[o]) return;
-    html += '<p class="meta" style="margin-top:12px">Opção '+o+'</p>' +
-            '<textarea readonly onclick="this.select()">'+esc(p.legendas[o])+'</textarea>';
+    html += '<p class="meta" style="margin-top:12px">Publicação ' + o + '</p>' +
+            '<textarea id="leg'+o+'">'+esc(p.legendas[o])+'</textarea>';
   });
+  html += '<div class="acoes" style="margin-top:12px">' +
+    '<button class="b forte" onclick="salvarLegendas(\''+id+'\')">Salvar legendas</button>' +
+    '<button class="b" onclick="fecharJanela()">Fechar</button>' +
+    '</div>';
   document.getElementById('janelaCorpo').innerHTML = html;
   document.getElementById('janela').showModal();
+}
+
+function fecharJanela(){ document.getElementById('janela').close(); }
+
+function salvarLegendas(id){
+  var textos = {};
+  ['A','B','C'].forEach(function(o){
+    var campo = document.getElementById('leg'+o);
+    if (campo) textos[o] = campo.value;
+  });
+  google.script.run
+    .withSuccessHandler(function(trocadas){
+      document.getElementById('janela').close();
+      recado('Legendas salvas' +
+        (trocadas ? ' e ' + trocadas + ' publicação(ões) na fila atualizadas.' : '.'), 6000);
+      carregar();
+    })
+    .withFailureHandler(function(e){ recado('Não consegui salvar: ' + e.message, 9000); })
+    .painelSalvarLegendas(CHAVE, id, textos);
 }
 
 function desenharCalendario(){

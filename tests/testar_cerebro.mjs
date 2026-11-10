@@ -589,6 +589,59 @@ teste('Produção travada volta para a fila, e o segundo tranco avisa por e-mail
     'e desta vez avisou por e-mail, em vez de tentar calado para sempre');
 });
 
+teste('Shows diferentes não recebem a mesma frase de abertura', (ctx, estado) => {
+  // O defeito: as nove frases de abertura estavam escritas, mas a escolha usava o
+  // número do layout — o A pegava sempre a primeira, o B sempre a segunda, o C
+  // sempre a terceira. Toda banda saía com as MESMAS três frases, semana após
+  // semana, só trocando o nome.
+  const aberturas = [];
+  for (const banda of ['Primeira Banda', 'Segunda Banda', 'Terceira Banda']) {
+    const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+      { banda, data: iso(emDias(7)) }));
+    ctx.registrarArtesProntas(id, artesFalsas(id));
+    const legendas = JSON.parse(ctx.acharProgramacao(id).Legendas);
+    aberturas.push(legendas.A.split('\n')[0].replace(banda.toUpperCase(), '{BANDA}'));
+  }
+  conferir(new Set(aberturas).size > 1,
+    'as aberturas variam entre shows: ' + JSON.stringify(aberturas.map((a) => a.slice(0, 24))));
+
+  // E não pode ser sorteio de verdade: a mesma programação, lida outra vez, tem de
+  // escrever a mesma legenda — senão refazer uma arte trocaria o texto das outras.
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Estável', data: iso(emDias(8)) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  const uma = JSON.parse(ctx.acharProgramacao(id).Legendas).A;
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  const outra = JSON.parse(ctx.acharProgramacao(id).Legendas).A;
+  conferir(uma === outra, 'e a mesma programação escreve sempre a mesma legenda');
+});
+
+teste('Legenda reescrita à mão troca também o que já está na fila', (ctx, estado) => {
+  // O ponto delicado: a legenda é COPIADA para a linha de cada publicação ao
+  // agendar. Salvar só na programação faria o painel mostrar o texto novo e o
+  // Instagram receber o antigo — erro que parece ter funcionado.
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Reescrita', data: iso(emDias(9)) }));
+  ctx.registrarArtesProntas(id, artesFalsas(id));
+  ctx.painelAprovar('chave-de-teste', id, []);
+
+  const naFila = () => ctx.linhas('AGENDAMENTOS')
+    .filter((a) => String(a.ProgramacaoId) === id && a.Canal === 'FEED' && a.Opcao === 'A')[0];
+  conferir(!!naFila(), 'a publicação A entrou na fila');
+
+  const trocadas = ctx.painelSalvarLegendas('chave-de-teste', id, { A: 'Texto novo escrito à mão' });
+  conferir(JSON.parse(ctx.acharProgramacao(id).Legendas).A === 'Texto novo escrito à mão',
+    'o texto novo foi guardado na programação');
+  conferir(naFila().Legenda === 'Texto novo escrito à mão',
+    'e a publicação que já estava na fila recebeu o mesmo texto');
+  conferir(trocadas === 1, 'o painel informou 1 publicação atualizada');
+
+  const storyIntacto = ctx.linhas('AGENDAMENTOS')
+    .filter((a) => String(a.ProgramacaoId) === id && a.Canal === 'STORY')
+    .every((a) => !a.Legenda);
+  conferir(storyIntacto, 'story continua sem legenda, como o Instagram exige');
+});
+
 teste('O relatório cobre o período do calendário, incluindo os shows que ainda vão acontecer', (ctx) => {
   // O defeito que isto guarda: o relatório contava "os últimos N dias a partir de
   // hoje". Agenda de casa de show é feita para a frente, então um relatório tirado

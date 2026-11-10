@@ -536,6 +536,45 @@ function estiloDoRelatorio() {
       'border-top:1px solid #ece4dd;padding-top:5px}';
 }
 
+/**
+ * Guarda as legendas reescritas à mão e, se as publicações já estiverem na fila,
+ * troca o texto delas também.
+ *
+ * Essa segunda parte é o ponto delicado: a legenda é COPIADA para a linha de cada
+ * publicação na hora de agendar. Guardar só na programação faria o painel mostrar
+ * o texto novo e o Instagram receber o antigo — o pior tipo de erro, porque parece
+ * que funcionou. Publicação que já saiu não é mexida: lá o texto já está no ar.
+ */
+function painelSalvarLegendas(chave, id, textos) {
+  exigirChave(chave);
+  var prog = acharProgramacao(id);
+  if (!prog) throw new Error('Programação não encontrada.');
+
+  var atuais = {};
+  try { atuais = JSON.parse(prog.Legendas || '{}'); } catch (x) { atuais = {}; }
+  ['A', 'B', 'C'].forEach(function (opcao) {
+    if (textos && typeof textos[opcao] === 'string') {
+      atuais[opcao] = String(textos[opcao]).slice(0, 2200);
+    }
+  });
+  gravarCampos(ABA.PROGRAMACOES, prog._linha, { Legendas: JSON.stringify(atuais) });
+
+  var trocadas = 0;
+  linhas(ABA.AGENDAMENTOS).forEach(function (a) {
+    if (String(a.ProgramacaoId) !== String(id)) return;
+    if (String(a.Canal) !== 'FEED') return;          // story não leva legenda
+    if (String(a.Situacao) !== SIT_POST.AGENDADO) return;
+    var novo = atuais[String(a.Opcao)];
+    if (novo == null || String(a.Legenda) === novo) return;
+    gravarCampos(ABA.AGENDAMENTOS, a._linha, { Legenda: novo });
+    trocadas++;
+  });
+
+  registrar('INFO', id, 'LEGENDAS_EDITADAS',
+    'Legendas reescritas à mão' + (trocadas ? '; ' + trocadas + ' publicação(ões) na fila atualizadas' : ''));
+  return trocadas;
+}
+
 function painelReprovar(chave, id, motivo) { exigirChave(chave); return reprovarProgramacao(id, motivo); }
 function painelRefazer(chave, id, peca) { exigirChave(chave); return refazerArtes(id, peca); }
 function painelPausar(chave, id) { exigirChave(chave); return pausarProgramacao(id); }

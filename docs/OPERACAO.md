@@ -104,6 +104,29 @@ As seis peças são refeitas juntas, mesmo pedindo por uma só — elas saem do 
 tratamento das fotos, e não existe refazer uma sem refazer o tratamento. O painel
 avisa isso antes de confirmar.
 
+### As legendas
+
+Para cada show o sistema escreve **três legendas**, uma por layout. Cada uma tem a
+mesma estrutura: frase de abertura, dados do show (data, dia, bar abre, horário,
+couvert, endereço), chamada para ação e hashtags. Tudo vem da inscrição — o sistema
+não inventa preço, promoção nem atração que não foi informada.
+
+A legenda acompanha a **publicação de feed** daquele layout. **Story não leva
+legenda**: o Instagram não aceita texto em story por esse caminho. Das seis peças,
+três levam legenda e três não.
+
+Em **Ver legendas** dá para **reescrever** qualquer uma e salvar. Se as publicações
+já estiverem na fila, o texto delas é trocado junto — guardar só na programação
+faria o painel mostrar o texto novo e o Instagram receber o antigo, que é o pior
+tipo de erro, porque parece ter funcionado. Publicação que já saiu não é mexida:
+ali o texto já está no ar.
+
+As frases de abertura **variam de show para show**. Houve um período em que não
+variavam: as nove frases estavam escritas, mas a escolha usava o número do layout,
+então toda banda saía com as mesmas três, semana após semana, só trocando o nome.
+A escolha agora parte do identificador da programação — e é estável, para que
+refazer uma arte não troque o texto das outras sem ninguém pedir.
+
 ### Baixar todas
 
 Um botão por banda junta as seis peças num `.zip`. As artes vêm do endereço
