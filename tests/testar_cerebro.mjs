@@ -559,6 +559,36 @@ const inscricaoFalsa = (extra = {}) => ({
   ...extra
 });
 
+teste('Produção travada volta para a fila, e o segundo tranco avisa por e-mail', (ctx, estado) => {
+  const id = ctx.processarResposta(respostaFalsa(ctx, estado,
+    { banda: 'Travada', data: iso(emDias(8)) }));
+
+  // Simula a oficina ter reivindicado o trabalho e morrido no meio: a programação
+  // fica em GERANDO_ARTES e ninguém mais a procura, porque a fila só olha quem
+  // está AGUARDANDO_ARTES. Sem o vigia, ela ficaria presa para sempre — foi o
+  // "pra sempre gerando artes" que apareceu em produção.
+  const velho = new Date(Date.now() - 60 * 60000).toISOString();
+  const travar = () => {
+    const p = ctx.acharProgramacao(id);
+    ctx.gravarCampos('PROGRAMACOES', p._linha,
+      { Situacao: 'GERANDO_ARTES', AtualizadoEm: velho });
+  };
+
+  travar();
+  ctx.rotinaArtes();
+  conferir(ctx.acharProgramacao(id).Situacao === 'AGUARDANDO_ARTES',
+    'no 1º tranco, voltou para a fila sozinha');
+  const emailsAntes = estado.emails.length;
+
+  travar();
+  ctx.rotinaArtes();
+  conferir(ctx.acharProgramacao(id).Situacao === 'AGUARDANDO_ARTES',
+    'no 2º tranco, voltou de novo');
+  conferir(estado.emails.length > emailsAntes &&
+    estado.emails[estado.emails.length - 1].subject.includes('travando'),
+    'e desta vez avisou por e-mail, em vez de tentar calado para sempre');
+});
+
 teste('O relatório cobre o período do calendário, incluindo os shows que ainda vão acontecer', (ctx) => {
   // O defeito que isto guarda: o relatório contava "os últimos N dias a partir de
   // hoje". Agenda de casa de show é feita para a frente, então um relatório tirado

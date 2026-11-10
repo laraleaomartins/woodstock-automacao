@@ -65,6 +65,15 @@ jobs:
       # o modelo de matting, que são mais 110 MB: o cache do GitHub só grava quando
       # a chave é nova, então manter a chave antiga faria o modelo novo ser baixado
       # de novo em toda execução, para sempre.
+      # As duas pastas precisam EXISTIR antes do cache entrar, mesmo vazias. Quando
+      # uma delas não existe, o passo de gravação termina com "Path Validation
+      # Error" e não salva nada — sem falhar a execução, o que torna o problema
+      # invisível. Foi o que aconteceu: o cache nunca era gravado, toda execução
+      # baixava 1,3 GB de modelos de novo, e várias morriam no meio do download.
+      - name: Garantir as pastas dos modelos
+        if: steps.fila.outputs.tem == 'sim'
+        run: mkdir -p ~/.u2net ~/.rembg
+
       - name: Cache dos modelos de recorte
         if: steps.fila.outputs.tem == 'sim'
         uses: actions/cache@v4
@@ -73,6 +82,11 @@ jobs:
             ~/.u2net
             ~/.rembg
           key: rembg-birefnet-u2net-isnet-vitmatte-v2
+          # Sem achar a chave exata, aproveita o cache anterior que começa igual.
+          # Assim, acrescentar um modelo novo passa a custar só o modelo novo, e
+          # não o pacote inteiro outra vez.
+          restore-keys: |
+            rembg-birefnet-u2net-isnet-
 
       - name: Cache do navegador do gerador
         if: steps.fila.outputs.tem == 'sim'

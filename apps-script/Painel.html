@@ -29,8 +29,16 @@
   .artes img{width:104px;border-radius:6px;border:1px solid var(--borda);display:block;background:#000}
   .artes figcaption{font-size:11px;color:var(--fraco);text-align:center;margin-top:4px}
   .acoes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-  .filtros{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
-  .filtros input[type=search]{flex:1;min-width:200px;background:#000;color:var(--texto);
+  /* Cada filtro é uma caixa fechada, com o nome em cima e o seu próprio botão de
+     limpar: assim nenhum parece continuação do outro, e dá para usar um sozinho. */
+  .filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px}
+  .grupoFiltro{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+    border:1px solid var(--borda);border-radius:9px;padding:8px 10px}
+  .rotuloFiltro{display:block;width:100%;color:var(--fraco);font-size:11px;
+    text-transform:uppercase;letter-spacing:.6px}
+  .ate{color:var(--fraco);font-size:12px}
+  button.b.mini{padding:4px 9px;line-height:1}
+  .filtros input[type=search]{width:230px;background:#000;color:var(--texto);
     border:1px solid var(--borda);border-radius:7px;padding:8px 12px;font-size:13px}
   .filtros input[type=date]{background:#000;color:var(--texto);border:1px solid var(--borda);
     border-radius:7px;padding:7px 9px;font-size:13px;margin-left:5px}
@@ -78,18 +86,35 @@
 </nav>
 
 <div id="barraFiltro" class="filtros">
-  <input type="search" id="fBanda" placeholder="Filtrar por banda ou artista" oninput="desenharProgramacoes()">
-  <label class="fdata">inscrita de <input type="date" id="fInscDe" onchange="desenharProgramacoes()"></label>
-  <label class="fdata">até <input type="date" id="fInscAte" onchange="desenharProgramacoes()"></label>
-  <label class="fdata">show de <input type="date" id="fShowDe" onchange="desenharProgramacoes()"></label>
-  <label class="fdata">até <input type="date" id="fShowAte" onchange="desenharProgramacoes()"></label>
-  <button class="b" onclick="limparFiltros()">Limpar</button>
-  <span class="sep"></span>
-  <span class="meta">Relatório em PDF:</span>
-  <button class="b" onclick="baixarRelatorio('SEMANAL')">Semanal</button>
-  <button class="b" onclick="baixarRelatorio('MENSAL')">Mensal</button>
-  <button class="b" onclick="baixarRelatorio('TRIMESTRAL')">Trimestral</button>
-  <span class="meta" id="contagem"></span>
+  <div class="grupoFiltro">
+    <span class="rotuloFiltro">Banda ou artista</span>
+    <input type="search" id="fBanda" placeholder="parte do nome ou do @" oninput="desenharProgramacoes()">
+    <button class="b mini" onclick="limparUm(['fBanda'])" title="limpar este filtro">×</button>
+  </div>
+  <div class="grupoFiltro">
+    <span class="rotuloFiltro">Data da inscrição</span>
+    <input type="date" id="fInscDe" onchange="desenharProgramacoes()">
+    <span class="ate">até</span>
+    <input type="date" id="fInscAte" onchange="desenharProgramacoes()">
+    <button class="b mini" onclick="limparUm(['fInscDe','fInscAte'])" title="limpar este filtro">×</button>
+  </div>
+  <div class="grupoFiltro">
+    <span class="rotuloFiltro">Data do show</span>
+    <input type="date" id="fShowDe" onchange="desenharProgramacoes()">
+    <span class="ate">até</span>
+    <input type="date" id="fShowAte" onchange="desenharProgramacoes()">
+    <button class="b mini" onclick="limparUm(['fShowDe','fShowAte'])" title="limpar este filtro">×</button>
+  </div>
+  <div class="grupoFiltro">
+    <span class="rotuloFiltro">Relatório em PDF</span>
+    <button class="b" onclick="baixarRelatorio('SEMANAL')">Semanal</button>
+    <button class="b" onclick="baixarRelatorio('MENSAL')">Mensal</button>
+    <button class="b" onclick="baixarRelatorio('TRIMESTRAL')">Trimestral</button>
+  </div>
+  <div class="grupoFiltro">
+    <button class="b" onclick="limparFiltros()">Limpar tudo</button>
+    <span class="meta" id="contagem"></span>
+  </div>
 </div>
 <div id="programacoes"></div>
 <div id="calendario" hidden></div>
@@ -173,6 +198,11 @@ function programacoesFiltradas(){
     if (sAte && p.dataShowISO > sAte) return false;
     return true;
   });
+}
+
+function limparUm(ids){
+  ids.forEach(function(id){ document.getElementById(id).value = ''; });
+  desenharProgramacoes();
 }
 
 function limparFiltros(){

@@ -10,9 +10,32 @@ function rotinaArtes() {
       if (p.Situacao !== SIT.GERANDO_ARTES) return;
       var desde = p.AtualizadoEm ? new Date(p.AtualizadoEm).getTime() : 0;
       if (desde < limite) {
-        gravarCampos(ABA.PROGRAMACOES, p._linha,
-          { Situacao: SIT.AGUARDANDO_ARTES, Erro: 'A produção travou e voltou para a fila.' });
-        registrar('AVISO', p.ID, 'ARTES_DESTRAVADAS', 'Passou de 45 min em produção; voltou para a fila.');
+        // Quantas vezes esta programação já travou. Travar uma vez é azar — a
+        // oficina do GitHub pode ser interrompida no meio. Travar várias é defeito,
+        // e ficar tentando em silêncio deixa você olhando "gerando artes" sem
+        // saber de nada, que foi exatamente o que aconteceu.
+        var tentativas = Number(String(p.Avisos || '').match(/travou (\d+)x/) ?
+          String(p.Avisos).match(/travou (\d+)x/)[1] : 0) + 1;
+        var avisos = String(p.Avisos || '').replace(/ ?\| ?travou \d+x/, '') +
+          ' | travou ' + tentativas + 'x';
+
+        gravarCampos(ABA.PROGRAMACOES, p._linha, {
+          Situacao: SIT.AGUARDANDO_ARTES,
+          Erro: 'A produção travou e voltou para a fila (' + tentativas + 'ª vez).',
+          Avisos: avisos.replace(/^ \| /, '').slice(0, 900)
+        });
+        registrar('AVISO', p.ID, 'ARTES_DESTRAVADAS',
+          'Passou de 45 min em produção; voltou para a fila (' + tentativas + 'ª vez).');
+
+        if (tentativas >= 2) {
+          notificar('A produção das artes está travando: ' + p.Banda,
+            'As artes de ' + p.Banda + ' já travaram ' + tentativas + ' vezes na oficina.\n\n' +
+            'A programação volta para a fila sozinha a cada 45 minutos, então ela não se ' +
+            'perde — mas, se isso continuar, as artes não vão sair e vale olhar as ' +
+            'execuções em\nhttps://github.com/' + (segredo('GITHUB_REPO') || '') + '/actions\n\n' +
+            'O motivo mais comum é a oficina ser interrompida no meio do trabalho.\n\n' +
+            linkPainel(), p.ID);
+        }
       }
     });
     cutucarGithub();
