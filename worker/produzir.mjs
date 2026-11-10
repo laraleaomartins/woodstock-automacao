@@ -8,7 +8,7 @@
  * Variáveis de ambiente: APPS_SCRIPT_URL, APPS_SCRIPT_TOKEN, PAGES_BASE_URL.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,6 +64,41 @@ function rodar(cmd, args, opcoes = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...opcoes });
 }
 
+/**
+ * Roda um programa mostrando o que ele escreve E guardando o motivo da falha.
+ *
+ * Antes isto era um `rodar` com a saída de erro ligada direto no registro: o texto
+ * aparecia no log do GitHub, mas não ficava em lugar nenhum para ser contado a
+ * quem usa o painel. Quando a preparação recusava uma foto — com uma explicação
+ * boa, dizendo o que reenviar —, o painel mostrava só "Command failed: python
+ * ...", que não diz nada a ninguém. A pessoa via um erro de computador em vez de
+ * um pedido claro.
+ *
+ * Agora a saída de erro é capturada e repetida no registro, e a explicação viaja
+ * junto com a falha até o painel.
+ */
+function rodarContandoOErro(cmd, args, opcoes = {}) {
+  const r = spawnSync(cmd, args, {
+    encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+    stdio: ['ignore', 'inherit', 'pipe'], ...opcoes
+  });
+  const erro = String(r.stderr || '');
+  if (erro) process.stderr.write(erro);
+  if (r.status === 0) return;
+
+  // A última linha com conteúdo é a mensagem; o resto do rastro é para o log.
+  const linhas = erro.split(String.fromCharCode(10)).map((l) => l.trim()).filter(Boolean);
+  const explicacao = linhas.reverse()
+    .find((l) => /^[A-Za-z]*(Error|Exception):/.test(l)) || linhas[0] || '';
+  const limpa = explicacao.replace(/^[A-Za-z]*(Error|Exception):\s*/, '');
+
+  throw new Error(limpa
+    ? limpa
+    : `${cmd} parou sem deixar mensagem (código ${r.status ?? 'desconhecido'}). ` +
+      'Quando isso acontece sem erro nenhum, costuma ser falta de memória na ' +
+      'máquina que produz as artes.');
+}
+
 async function baixarArquivo(fileId, destino) {
   const r = await api('arquivo', { id: fileId });
   fs.writeFileSync(destino, Buffer.from(r.arquivo.conteudo, 'base64'));
@@ -99,7 +134,7 @@ async function produzir(job) {
   // Refazer tem de tentar um caminho diferente: o recorte é determinístico, e
   // repetir a mesma conta devolveria a mesma arte.
   if (job.tentativa && job.tentativa > 1) argumentos.push('--tentativa', String(job.tentativa));
-  rodar(PYTHON, argumentos, { stdio: ['ignore', 'inherit', 'inherit'] });
+  rodarContandoOErro(PYTHON, argumentos);
   const imagens = JSON.parse(fs.readFileSync(jsonImagens, 'utf8'));
   const avisos = imagens._avisos || [];
   avisos.forEach((a) => console.log(`  aviso: ${a}`));
@@ -118,12 +153,11 @@ async function produzir(job) {
   const arquivoShow = path.join(entrada, 'show.json');
   fs.writeFileSync(arquivoShow, JSON.stringify([show], null, 1));
 
-  rodar('node', ['render3.js', arquivoShow, saidaPng], { cwd: GERADOR, stdio: ['ignore', 'inherit', 'inherit'] });
+  rodarContandoOErro('node', ['render3.js', arquivoShow, saidaPng], { cwd: GERADOR });
 
   const destino = path.join(PUBLICO, job.id);
   limpar(destino);
-  rodar(PYTHON, [path.join(AQUI, 'para_jpeg.py'), saidaPng, destino],
-    { stdio: ['ignore', 'inherit', 'inherit'] });
+  rodarContandoOErro(PYTHON, [path.join(AQUI, 'para_jpeg.py'), saidaPng, destino]);
 
   const artes = { FEED: {}, STORY: {} };
   for (const nome of fs.readdirSync(destino)) {
