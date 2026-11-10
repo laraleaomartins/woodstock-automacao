@@ -196,8 +196,26 @@ retratos colados lado a lado. Três coisas fazem essa diferença:
    pessoa. E eles se encostam de leve: grupo reunido ocupa um bloco só, e vão vazio
    entre as pessoas denuncia a colagem.
 
+4. **O grupo termina junto.** Cada foto foi cortada num lugar diferente do corpo —
+   um na coxa, outro no quadril. Postos lado a lado, cada um acabava numa linha
+   reta própria, no meio do ar, e era isso que fazia os recortes parecerem
+   adesivos. Agora todos dissolvem a partir da mesma linha, a do corpo que termina
+   mais cedo, e a banda emerge do escuro junto.
+5. **Duas fileiras, quando o vão é alto.** Três pessoas lado a lado formam uma
+   figura larga e baixa. Na peça da coluna vermelha, que tem o vão alto e
+   estreito, essa figura precisa encolher para caber na largura e vira uma tirinha
+   boiando num vazio — sobrava mais da metade da peça. Então essa peça recebe um
+   arranjo próprio: a banda em duas fileiras, com a da frente por cima e deslocada
+   meia pessoa para o lado, encaixando nos vãos. Medido com três pessoas, a
+   ocupação foi de 52% para 84%. As peças largas continuam com a fila.
+
 Nada é inventado: ninguém é redesenhado, só redimensionado, clareado e posto no
 lugar.
+
+**O que este sistema NÃO faz**, e não é por falta de tentativa: corrigir
+perspectiva ou ângulo de câmera. Duas pessoas fotografadas de alturas diferentes
+continuam vindo de ângulos diferentes, e igualar isso exigiria redesenhar a
+pessoa. A regra do projeto é não inventar nada que não estava na foto.
 
 ---
 
