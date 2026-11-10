@@ -47,12 +47,12 @@ def pasta_com(*copias):
     return destino
 
 
-def preparar(entrada, ident):
+def preparar(entrada, ident, juntar=False):
     gerador = tempfile.mkdtemp()
     os.makedirs(os.path.join(gerador, "bands"))
     for n in ("tratar_foto.py", "tratar_logo.py"):
         shutil.copy(os.path.join(RAIZ, "gerador", n), os.path.join(gerador, n))
-    return pi.preparar(entrada, gerador, ident), gerador
+    return pi.preparar(entrada, gerador, ident, juntar=juntar), gerador
 
 
 def banda_em(gerador, rel):
@@ -86,11 +86,31 @@ for peca, chave in (("A", "photo"), ("B", "photoB"), ("C", "photoC")):
                  % (peca, composicao.ESPACOS[peca]))
 
 print("\n• A banda começa no alto do espaço, nunca no rodapé")
-for peca, chave in (("A", "photo"), ("B", "photoB"), ("C", "photoC")):
+# A polaroide fica de fora desta conta: lá a imagem entra INTEIRA e centralizada,
+# justamente para não cortar ninguém, então ela não começa colada no alto.
+for peca, chave in (("A", "photo"), ("B", "photoB")):
     topo = banda_em(g, r[chave])["topo"]
     conferir(topo <= composicao.FOLGA_TOPO[peca] + 0.02,
              "na peça %s a banda começa a %.0f%% da altura, dentro do respiro de %.0f%%"
              % (peca, topo * 100, composicao.FOLGA_TOPO[peca] * 100))
+
+print("\n• Integrantes montados numa banda: a banda vai em TODAS as peças")
+# O defeito: a montagem é larga, então ia para as peças A e C, e a peça B ficava
+# com a foto de um integrante sozinho — um show de banda anunciado com o retrato
+# de uma pessoa só.
+juntos = pasta_com(("kundera_solo_bw.png", "foto1.png"), ("pelada_bw.png", "foto2.png"))
+rj, gj = preparar(juntos, "montagem", juntar=True)
+pessoas_por_peca = {}
+for peca, chave in (("A", "photo"), ("B", "photoB"), ("C", "photoC")):
+    im = Image.open(os.path.join(gj, rj[chave])).convert("RGBA")
+    colunas = (np.array(im.split()[3]) > 40).any(axis=0)
+    # Conta blocos de colunas ocupadas: duas pessoas lado a lado dão dois blocos,
+    # ou um só quando se encostam — o que não pode é a peça ter metade do conteúdo.
+    pessoas_por_peca[peca] = int(colunas.sum())
+conferir(any("montei" in a for a in rj["_avisos"]), "a montagem aconteceu")
+larguras = list(pessoas_por_peca.values())
+conferir(max(larguras) and min(larguras) / max(larguras) > 0.55,
+         "as três peças mostram a mesma banda (colunas ocupadas: %s)" % pessoas_por_peca)
 
 print("\n• Cada peça recebe a foto com o formato certo")
 # O gabarito do kit: a foto deitada vai para A e C, a em pé para B.
@@ -265,6 +285,36 @@ conferir(primeira / am.shape[0] <= composicao.FOLGA_TOPO["B"] + 0.02,
 conferir(ocupa > 0.5,
          "e ocupa o espaço de verdade (%.0f%% da altura), em vez de encolher"
          % (ocupa * 100))
+
+print("\n• A polaroide nunca corta a cabeça de quem está na foto")
+# O defeito que isto guarda: a polaroide é deitada e a foto costuma ser em pé, então
+# sobra altura e é preciso cortar. Cortando pelo meio, numa foto de alguém curvado,
+# a arte saiu com o tronco e SEM o rosto. A cabeça é o que não pode faltar.
+def fazer_pessoa(alto=1600, largo=900, cabeca_em=0.08, opaca=False):
+    im = Image.new("RGBA", (largo, alto), (40, 40, 40, 255) if opaca else (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    topo = int(alto * cabeca_em)
+    d.ellipse((largo * 0.38, topo, largo * 0.62, topo + alto * 0.12),
+              fill=(220, 220, 220, 255))                                   # cabeça
+    d.rectangle((largo * 0.30, topo + alto * 0.12, largo * 0.70, alto - 1),
+                fill=(200, 200, 200, 255))                                 # corpo
+    return im
+
+
+for recortada, oque in ((True, "foto recortada"), (False, "foto inteira, sem recorte")):
+    origem = os.path.join(tempfile.mkdtemp(), "p.png")
+    fazer_pessoa(opaca=not recortada).save(origem)
+    saida = os.path.join(tempfile.mkdtemp(), "c.png")
+    composicao.encaixar(origem, saida, "C")
+
+    arte = np.array(Image.open(saida).convert("RGB"))
+    claro = (arte > 190).all(axis=2)          # a cabeça é a parte mais clara
+    linhas_cabeca = np.where(claro.any(axis=1))[0]
+    conferir(len(linhas_cabeca) > 0, "%s: a cabeça aparece na polaroide" % oque)
+    if len(linhas_cabeca):
+        conferir(linhas_cabeca.min() < arte.shape[0] * 0.35,
+                 "%s: e aparece no alto, a %.0f%% da altura"
+                 % (oque, linhas_cabeca.min() / arte.shape[0] * 100))
 
 print("\n• Refazer tenta um caminho diferente, não repete o mesmo")
 # O recorte é determinístico: a mesma foto sai igual todas as vezes. Um "refazer"

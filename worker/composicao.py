@@ -145,7 +145,7 @@ def dissolver_corte_reto(pessoa, cheio=0.6, dissolver=0.10):
     return pessoa
 
 
-def encaixar(entrada, saida, peca):
+def encaixar(entrada, saida, peca, cabeca=None):
     """
     Entrega a foto na forma exata do espaço da peça.
 
@@ -153,7 +153,7 @@ def encaixar(entrada, saida, peca):
     denuncia arte vazia antes de ela ser publicada.
     """
     if MODO[peca] == "moldura":
-        return _preencher_quadro(entrada, saida, peca)
+        return _preencher_quadro(entrada, saida, peca, cabeca)
 
     largura, altura = ESPACOS[peca]
     pessoa = _sujeito(Image.open(entrada).convert("RGBA"))
@@ -203,63 +203,43 @@ def casar_com_fundo(tela, fundir=0.26, sumir=0.12, resta=0.12):
     return saida
 
 
-def _preencher_quadro(entrada, saida, peca):
+def _preencher_quadro(entrada, saida, peca, cabeca=None):
     """
-    Preenche o quadro da peça com a foto, deixando o excedente sair pelas bordas.
+    Põe a imagem dentro do quadro da peça, INTEIRA, do maior tamanho que couber.
 
-    É o que a referência do kit faz na polaroide: a banda vai de ponta a ponta e o
-    quadro corta quem sobra. O avesso disso — encolher a pessoa até ela caber
-    inteira — é o que produz o retângulo escuro com um recorte boiando no meio.
+    A polaroide é deitada e a foto de banda quase sempre é em pé, então sobra
+    altura. Houve três tentativas de escolher que faixa mostrar, e as três cortaram
+    artista fora da arte:
 
-    Para uma pessoa sozinha, em foto estreita, cobrir significa aproximar: sobra
-    altura, o corte é embaixo, e o que fica é o retrato de cabeça e tronco que a
-    polaroide pede. Para uma foto deitada de banda, sobra largura, e o corte é nos
-    lados — com limite, para não jogar ninguém inteiro para fora.
+      - pela faixa do meio: numa foto de alguém curvado, apareceu o tronco e a
+        cabeça ficou acima do corte;
+      - pelo alto da imagem: quem ergue a guitarra teve a cravelha enquadrada e o
+        rosto cortado embaixo;
+      - pela largura da silhueta, procurando a cabeça: a cravelha de uma guitarra
+        também é larga — são seis tarraxas — e continuou sendo confundida com ela.
+
+    Achar o rosto resolveria, mas exigiria um detector de rosto, que é peso novo
+    para instalar em toda execução e mais uma coisa para errar.
+
+    Então a regra passou a ser a que nunca erra: **não cortar**. A imagem entra
+    completa, do maior tamanho que caiba, centralizada. O que sobra nas laterais é o
+    fundo escuro do próprio porta-retrato — e porta-retrato com foto em pé dentro é
+    coisa que todo mundo reconhece. Perder um pedaço da pessoa, não.
+
+    O parâmetro `cabeca` continua aceito porque quem chama ainda o calcula para
+    outras decisões; aqui ele não é mais necessário.
     """
     largura, altura = ESPACOS[peca]
-    pessoa = _sujeito(Image.open(entrada).convert("RGBA"))
+    foto = _sujeito(Image.open(entrada).convert("RGBA"))
 
-    cobrir = max(largura / pessoa.width, altura / pessoa.height)
-    # O corte lateral que essa escala exigiria, medido sobre a própria pessoa.
-    sobra_lateral = 1 - largura / (pessoa.width * cobrir)
-    if sobra_lateral > CORTE_LATERAL_MAXIMO:
-        cobrir = largura / (pessoa.width * (1 - CORTE_LATERAL_MAXIMO))
-    # E o corte de cima e de baixo. Sem este limite, uma pessoa sozinha numa foto
-    # estreita é aproximada até o quadro mostrar só um pedaço dela.
-    if altura / (pessoa.height * cobrir) < ALTURA_MINIMA_VISIVEL:
-        cobrir = altura / (pessoa.height * ALTURA_MINIMA_VISIVEL)
-
-    centro = _centro_do_corpo(pessoa)
-    nova = (max(1, round(pessoa.width * cobrir)), max(1, round(pessoa.height * cobrir)))
-    pessoa = pessoa.resize(nova, Image.LANCZOS)
-
-    # A janela do quadro é centrada no corpo, não no alto do recorte. Ancorar no
-    # alto parece certo — "o que não pode faltar é a cabeça" — mas o alto do recorte
-    # nem sempre é a cabeça: quem segura a guitarra erguida tem a rosca da guitarra
-    # como ponto mais alto, e ancorar ali enquadra o instrumento e corta o rosto
-    # fora. Foi o que aconteceu na primeira tentativa.
-    y = round(altura / 2 - centro * cobrir)
-    y = max(min(y, 0), min(0, altura - nova[1]))
+    escala = min(largura / foto.width, altura / foto.height)
+    nova = (max(1, round(foto.width * escala)), max(1, round(foto.height * escala)))
+    foto = foto.resize(nova, Image.LANCZOS)
 
     tela = Image.new("RGBA", (largura, altura), (0, 0, 0, 0))
-    tela.alpha_composite(pessoa, ((largura - nova[0]) // 2, y))
+    tela.alpha_composite(foto, ((largura - nova[0]) // 2, (altura - nova[1]) // 2))
     tela.save(saida)
-    return min(nova[1], altura) / altura
-
-
-def _centro_do_corpo(pessoa):
-    """
-    A altura em que o corpo da pessoa se concentra, em pixels do recorte.
-
-    É a média das linhas pesada pelo quanto de pessoa existe em cada uma. Braço,
-    tronco e ombros são largos e puxam o resultado para onde a pessoa está;
-    guitarra erguida, microfone e baqueta são finos e quase não pesam, que é
-    justamente o que se quer — eles não devem mandar no enquadramento.
-    """
-    presente = (np.array(pessoa.split()[3]) > 40).sum(axis=1).astype(float)
-    if presente.sum() <= 0:
-        return pessoa.height / 2
-    return float((np.arange(len(presente)) * presente).sum() / presente.sum())
+    return nova[1] / altura
 
 
 def _centro_do_interesse(foto):
@@ -284,7 +264,7 @@ def _centro_do_interesse(foto):
             float((ys * detalhe).sum() / detalhe.sum()))
 
 
-def integrar_retangulo(entrada, saida, peca):
+def integrar_retangulo(entrada, saida, peca, cabeca=None):
     """
     Põe no espaço uma foto que não foi recortada, sem que ela vire um retângulo.
 
@@ -304,7 +284,7 @@ def integrar_retangulo(entrada, saida, peca):
         não comer a pessoa quando ela está de lado.
     """
     if MODO[peca] == "moldura":
-        return _preencher_quadro(entrada, saida, peca)
+        return _preencher_quadro(entrada, saida, peca, cabeca)
     return _dissolver_no_fundo(entrada, saida, peca)
 
 

@@ -363,6 +363,72 @@ def juntar_integrantes(recortadas, destino, encosto=0.03):
     return destino, len(ajustadas)
 
 
+def achar_cabeca(caminho):
+    """
+    A que altura está a cabeça de quem aparece na foto, em fração da altura.
+
+    Serve para a polaroide, que é deitada: a foto quase sempre é em pé e sobra
+    altura, então é preciso escolher QUAL faixa mostrar. Escolher errado corta a
+    pessoa, e já cortou de dois jeitos opostos:
+
+      - pela faixa do meio, uma foto de alguém curvado mostrou o tronco e a cabeça
+        ficou acima do corte;
+      - pelo alto da foto, quem ergue a guitarra teve o instrumento enquadrado e o
+        rosto cortado embaixo.
+
+    Quando a foto já veio recortada, a silhueta responde sozinha. Quando ela entra
+    inteira, não há silhueta — e aí vale a pena gastar alguns segundos com o modelo
+    RÁPIDO só para localizar a pessoa. Ele não é bom o bastante para recortar, mas é
+    de sobra para dizer onde está a cabeça.
+
+    Devolve a fração (0 = topo). Zero também é a resposta quando não dá para saber,
+    que é o palpite certo para uma fotografia de pessoa.
+    """
+    if tem_transparencia_real(caminho):
+        return _fracao_da_cabeca(Image.open(caminho).convert("RGBA"))
+    try:
+        pedido = subprocess.run(
+            [sys.executable, os.path.abspath(__file__), "--cabeca", caminho],
+            capture_output=True, text=True, timeout=180)
+        for linha in (pedido.stdout or "").splitlines():
+            if linha.startswith("CABECA "):
+                return float(linha.split()[1])
+    except Exception:
+        pass
+    return 0.0
+
+
+def _fracao_da_cabeca(imagem, fatia=0.22, persistencia=0.09):
+    """
+    A primeira linha que é cabeça de verdade, e não cravelha de guitarra.
+
+    Só olhar a largura não serve: a cravelha de uma guitarra erguida é larga —
+    tem as seis tarraxas — e era confundida com a cabeça, enquadrando o instrumento
+    e cortando o rosto fora. A diferença entre as duas está no que vem LOGO ABAIXO:
+    a cravelha afina no mastro, que é um risco fino; a cabeça continua larga e
+    depois alarga ainda mais, nos ombros.
+
+    Então a largura precisa SE SUSTENTAR por um trecho — cerca de um décimo da
+    altura da foto — para a linha valer como cabeça. Um pedaço largo e curto é
+    instrumento, e a busca segue descendo.
+    """
+    larguras = (np.array(imagem.split()[3]) > 40).sum(axis=1)
+    if not larguras.max():
+        return 0.0
+
+    limiar = larguras.max() * fatia
+    trecho = max(2, int(imagem.height * persistencia))
+    largas = larguras >= limiar
+
+    # Soma corrida: quantas linhas largas existem nas próximas `trecho` linhas.
+    acumulado = np.concatenate(([0], np.cumsum(largas)))
+    for linha in range(len(largas) - trecho):
+        if largas[linha] and (acumulado[linha + trecho] - acumulado[linha]) >= trecho * 0.85:
+            return float(linha) / imagem.height
+    achadas = np.where(largas)[0]
+    return float(achadas[0]) / imagem.height if len(achadas) else 0.0
+
+
 def tirar_pedacos_soltos(caminho, fracao=0.06):
     """
     Apaga do recorte os pedaços soltos, desligados de quem está na foto.
@@ -966,8 +1032,29 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
     mais_deitada = recortadas[0]    # peças A e C: vão largo e baixo
     mais_em_pe = recortadas[-1]     # peça B: vão alto e estreito
 
+    # Quando os integrantes vieram em fotos separadas e foram montados numa banda,
+    # é a BANDA que aparece em todas as peças. Sem isto, a montagem — que é larga —
+    # ia para as peças A e C, e a peça B ficava com a foto de um integrante
+    # sozinho, anunciando um show de banda com o retrato de uma pessoa só.
+    #
+    # A banda montada é larga e a peça B tem o vão alto e estreito, então lá ela
+    # aparece menor. É o preço certo: melhor a banda inteira menor do que um
+    # integrante grande fazendo as vezes do grupo.
+    if houve_montagem:
+        mais_deitada = mais_em_pe = montada
+
     saida = {}
     tratar = os.path.join(pasta_gerador, "tratar_foto.py")
+
+    # Onde está a cabeça de cada foto. Só a polaroide usa, e só ela precisa: é a
+    # peça que corta a foto para preencher o quadro, e cortar errado decepa a
+    # pessoa. Medido uma vez por foto, não uma vez por peça.
+    cabecas = {}
+
+    def onde_esta_a_cabeca(origem):
+        if origem not in cabecas:
+            cabecas[origem] = achar_cabeca(origem)
+        return cabecas[origem]
 
     def entregar(peca, origem, chave, crop=None):
         """Trata em P&B e entrega a foto já na forma do espaço desta peça."""
@@ -978,10 +1065,11 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
         executar(argumentos)
 
         destino = os.path.join(bands, "%s_%s.png" % (ident, peca))
+        cabeca = onde_esta_a_cabeca(origem) if peca == "C" else None
         if origem in inteiras:
-            composicao.integrar_retangulo(bw, destino, peca)
+            composicao.integrar_retangulo(bw, destino, peca, cabeca)
         else:
-            ocupacao = composicao.encaixar(bw, destino, peca)
+            ocupacao = composicao.encaixar(bw, destino, peca, cabeca)
             if ocupacao < composicao.ALTURA_POBRE:
                 avisos.append(
                     "na peça %s a banda ocupou só %.0f%% da altura do espaço: a foto é "
@@ -1020,6 +1108,21 @@ if __name__ == "__main__":
     # Modo "recorte de uma foto só", usado pelo próprio arquivo quando chama a si
     # mesmo num processo separado — ver recortar_em_processo_proprio. É o que
     # garante que a memória do recortador volte para a máquina a cada foto.
+    # Só localizar a pessoa, com o modelo rápido, para a polaroide saber que faixa
+    # da foto mostrar. Roda em processo próprio pelo mesmo motivo do recorte: a
+    # memória do modelo não volta sem o processo acabar.
+    if "--cabeca" in sys.argv:
+        from rembg import remove
+        import io as _io
+
+        _foto = sys.argv[sys.argv.index("--cabeca") + 1]
+        _, _bruto = em_resolucao_de_trabalho(_foto, 640)
+        _mascara = Image.open(_io.BytesIO(remove(
+            _bruto, session=sessao(MODELO_CONFERENCIA), post_process_mask=True))
+        ).convert("RGBA")
+        print("CABECA %.4f" % _fracao_da_cabeca(_mascara))
+        sys.exit(0)
+
     if "--recortar" in sys.argv:
         i = sys.argv.index("--recortar")
         de, para = sys.argv[i + 1], sys.argv[i + 2]
