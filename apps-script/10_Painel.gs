@@ -304,6 +304,13 @@ function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
     return '<div class="num"><b>' + valor + '</b><span>' + rotulo + '</span></div>';
   };
 
+  // A capa é clara, e não escura como o documento que serviu de modelo. Não é
+  // escolha de gosto: o conversor de PDF do Google escurece toda cor clara da
+  // página em cerca de um terço — medido, #ffffff sai #ababab e #ff6b5e sai
+  // #ab473f —, provavelmente para que texto branco não suma em papel branco. Numa
+  // capa escura isso deixa o título cinza-chumbo, e não há como compensar: já não
+  // existe cor mais clara que o branco para pedir. Em fundo claro com letra escura
+  // o mesmo desvio não aparece, e a capa sai limpa.
   var capa =
     '<section class="folha capa">' +
     marcaDaCapa(progs) +
@@ -465,10 +472,8 @@ function rodape(pagina) {
  */
 function estiloDoRelatorio() {
   var CREME = '#faf7f4';
-  var ESCURO = '#120303';
   var TINTA = '#1c1713';
   var VERMELHO = '#d6121c';
-  var SALMAO = '#ff6b5e';
   var TITULO = "Anton, 'Arial Narrow', Impact, sans-serif";
   var TEXTO = "'Barlow Semi Condensed', 'Arial Narrow', Arial, sans-serif";
 
@@ -478,22 +483,24 @@ function estiloDoRelatorio() {
     '.folha{width:297mm;height:209mm;padding:16mm 18mm;position:relative;' +
       'page-break-after:always;overflow:hidden}' +
     '.folha.clara{background:' + CREME + '}' +
-    '.capa{background:' + ESCURO + ';color:#fff}' +
+    '.capa{background:' + CREME + ';color:' + TINTA + '}' +
+
     'img.marca{width:58mm;display:block}' +
     'div.marca{font-family:' + TITULO + ';font-size:40px;color:' + VERMELHO + ';line-height:1}' +
     'div.marca i{display:block;font-family:' + TEXTO + ';font-style:italic;font-size:15px;' +
       'letter-spacing:4px;margin-top:2px}' +
     '.etiqueta{font-weight:700;font-size:11px;letter-spacing:4px;text-transform:uppercase;' +
-      'color:' + SALMAO + ';margin-top:34mm}' +
+      'color:' + VERMELHO + ';margin-top:34mm}' +
     '.etiqueta.v{color:' + VERMELHO + ';margin-top:0}' +
     '.capa h1{font-family:' + TITULO + ';font-size:62px;line-height:1.02;margin-top:6px;' +
-      'text-transform:uppercase}' +
+      'text-transform:uppercase;color:' + TINTA + '}' +
     '.capa h1 em{font-style:normal;color:' + VERMELHO + '}' +
     '.numeros{display:flex;gap:10mm;position:absolute;left:18mm;right:18mm;bottom:28mm}' +
     '.num{flex:1;border-top:2px solid ' + VERMELHO + ';padding-top:6px}' +
-    '.num b{display:block;font-family:' + TITULO + ';font-size:34px;line-height:1}' +
-    '.num span{font-size:11px;color:#e9dcd2}' +
-    '.capa .pe{position:absolute;left:18mm;bottom:16mm;font-size:10px;color:#b9a79b}' +
+    '.num b{display:block;font-family:' + TITULO + ';font-size:34px;line-height:1;' +
+      'color:' + TINTA + '}' +
+    '.num span{font-size:11px;color:#6b615b}' +
+    '.capa .pe{position:absolute;left:18mm;bottom:16mm;font-size:10px;color:#9a8e86}' +
     'h2{font-family:' + TITULO + ';font-size:34px;text-transform:uppercase;line-height:1.05;' +
       'border-bottom:3px solid ' + VERMELHO + ';padding-bottom:5px;margin-bottom:8px}' +
     'h2 .periodo{float:right;font-family:' + TEXTO + ';font-size:12px;color:#7a6f68;' +
