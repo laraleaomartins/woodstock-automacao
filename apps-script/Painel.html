@@ -79,8 +79,10 @@
 
 <div id="barraFiltro" class="filtros">
   <input type="search" id="fBanda" placeholder="Filtrar por banda ou artista" oninput="desenharProgramacoes()">
-  <label class="fdata">de <input type="date" id="fDe" onchange="desenharProgramacoes()"></label>
-  <label class="fdata">até <input type="date" id="fAte" onchange="desenharProgramacoes()"></label>
+  <label class="fdata">inscrita de <input type="date" id="fInscDe" onchange="desenharProgramacoes()"></label>
+  <label class="fdata">até <input type="date" id="fInscAte" onchange="desenharProgramacoes()"></label>
+  <label class="fdata">show de <input type="date" id="fShowDe" onchange="desenharProgramacoes()"></label>
+  <label class="fdata">até <input type="date" id="fShowAte" onchange="desenharProgramacoes()"></label>
   <button class="b" onclick="limparFiltros()">Limpar</button>
   <span class="sep"></span>
   <span class="meta">Relatório em PDF:</span>
@@ -152,20 +154,31 @@ function desenhar(){
 
 // As programações chegam do servidor já em ordem de data, da mais recente para a
 // mais antiga. A lista só é filtrada aqui — a ordem não é mexida.
+// Dois recortes de data, que respondem perguntas diferentes e podem ser usados
+// juntos: "o que entrou esta semana" (data da inscrição) e "quem toca em dezembro"
+// (data do show). Um só não serve para as duas coisas.
 function programacoesFiltradas(){
-  var texto = (document.getElementById('fBanda').value || '').trim().toLowerCase();
-  var de = document.getElementById('fDe').value;
-  var ate = document.getElementById('fAte').value;
+  var v = function(id){ return document.getElementById(id).value; };
+  var texto = (v('fBanda') || '').trim().toLowerCase();
+  var iDe = v('fInscDe'), iAte = v('fInscAte');
+  var sDe = v('fShowDe'), sAte = v('fShowAte');
   return dados.programacoes.filter(function(p){
     if (texto && (p.banda + ' ' + p.instagram).toLowerCase().indexOf(texto) < 0) return false;
-    if (de && p.dataShowISO < de) return false;
-    if (ate && p.dataShowISO > ate) return false;
+    // A data da inscrição vem com hora junto; comparar só os 10 primeiros
+    // caracteres deixa o dia escolhido contar inteiro, em vez de parar à meia-noite.
+    var insc = (p.recebidoISO || '').slice(0, 10);
+    if (iDe && (!insc || insc < iDe)) return false;
+    if (iAte && (!insc || insc > iAte)) return false;
+    if (sDe && p.dataShowISO < sDe) return false;
+    if (sAte && p.dataShowISO > sAte) return false;
     return true;
   });
 }
 
 function limparFiltros(){
-  ['fBanda','fDe','fAte'].forEach(function(id){ document.getElementById(id).value = ''; });
+  ['fBanda','fInscDe','fInscAte','fShowDe','fShowAte'].forEach(function(id){
+    document.getElementById(id).value = '';
+  });
   desenharProgramacoes();
 }
 
@@ -226,7 +239,8 @@ function desenharProgramacoes(){
     return '<div class="cartao">' +
       '<div class="linha"><div><div class="banda">'+esc(p.banda)+'</div>' +
       '<div class="meta">'+esc(p.dataShow)+' · '+esc(p.diaSemana)+' · '+esc(p.horaShow)+' · '+esc(p.instagram)+
-      ' · '+p.recebidos+' arquivo(s) recebido(s)</div></div>' +
+      ' · '+p.recebidos+' arquivo(s) recebido(s)</div>' +
+      (p.recebidoEm ? '<div class="meta">inscrita em '+esc(p.recebidoEm)+'</div>' : '') + '</div>' +
       '<span class="etq e-'+esc(p.situacao)+'">'+esc(p.situacao.replace(/_/g,' '))+'</span></div>' +
       (p.erro ? '<div class="meta" style="color:#ff8d95;margin-top:8px">'+esc(p.erro)+'</div>' : '') +
       (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +

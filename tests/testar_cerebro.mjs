@@ -559,6 +559,33 @@ const inscricaoFalsa = (extra = {}) => ({
   ...extra
 });
 
+teste('O relatório cobre o período do calendário, incluindo os shows que ainda vão acontecer', (ctx) => {
+  // O defeito que isto guarda: o relatório contava "os últimos N dias a partir de
+  // hoje". Agenda de casa de show é feita para a frente, então um relatório tirado
+  // no dia 10 não achava nenhum show marcado para o dia 15 e saía vazio, com a
+  // agenda cheia. Agora o período é a semana, o mês e o trimestre CORRENTES.
+  const hoje = new Date();
+  const mes = ctx.periodoDoRelatorio('MENSAL');
+  conferir(mes.de.getDate() === 1, 'o mensal começa no dia 1');
+  conferir(mes.ate.getMonth() === hoje.getMonth(),
+    'e termina no último dia do mesmo mês');
+  conferir(mes.ate.getTime() > hoje.getTime(),
+    'o fim do período está no futuro, então show marcado para daqui a dias entra');
+
+  const tri = ctx.periodoDoRelatorio('TRIMESTRAL');
+  conferir([0, 3, 6, 9].indexOf(tri.de.getMonth()) >= 0,
+    'o trimestral começa no primeiro mês do trimestre');
+  conferir(tri.ate.getTime() >= mes.ate.getTime(), 'e cobre pelo menos o mês inteiro');
+
+  const sem = ctx.periodoDoRelatorio('SEMANAL');
+  conferir(sem.de.getDay() === 1, 'a semana começa na segunda-feira');
+  conferir(sem.ate.getDay() === 0, 'e termina no domingo');
+  conferir(sem.ate.getHours() === 23,
+    'o último dia conta inteiro, até 23:59 — senão um show do próprio domingo ficaria de fora');
+
+  conferir(ctx.periodoDoRelatorio('ANUAL') === null, 'período desconhecido é recusado');
+});
+
 teste('Aprovar as marcadas publica só elas, e as outras ficam de fora', (ctx, estado) => {
   const id = ctx.processarResposta(respostaFalsa(ctx, estado,
     { banda: 'Meia Arte', data: iso(emDias(9)) }));

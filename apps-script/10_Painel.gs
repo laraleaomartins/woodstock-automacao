@@ -47,6 +47,8 @@ function painelCarregar(chave) {
       instagram: String(p.InstagramBanda),
       dataShow: fmt(data, 'dd/MM/yyyy'),
       dataShowISO: fmt(data, 'yyyy-MM-dd'),
+      recebidoEm: p.RecebidoEm ? fmt(new Date(p.RecebidoEm), 'dd/MM/yyyy HH:mm') : '',
+      recebidoISO: p.RecebidoEm ? new Date(p.RecebidoEm).toISOString() : '',
       horaShow: horaTexto(p.HoraShow),
       diaSemana: String(p.DiaSemana),
       situacao: String(p.Situacao),
@@ -60,7 +62,14 @@ function painelCarregar(chave) {
       story: artes.STORY || {},
       legendas: legendas
     };
-  }).sort(function (a, b) { return a.dataShowISO < b.dataShowISO ? 1 : -1; });
+  // Ordem de chegada, a inscrição mais nova no topo — e não por data do show.
+  // É a ordem de quem trabalha no painel: o que acabou de entrar é o que precisa de
+  // atenção. Por data do show, uma banda que se inscreveu agora para dali a um mês
+  // apareceria no fim da lista, embaixo de shows já resolvidos.
+  }).sort(function (a, b) {
+    if (a.recebidoISO === b.recebidoISO) return 0;
+    return a.recebidoISO < b.recebidoISO ? 1 : -1;
+  });
 
   var ags = linhas(ABA.AGENDAMENTOS).map(function (a) {
     return {
@@ -150,11 +159,41 @@ function painelBaixarArtes(chave, id) {
 // viraria um arquivo de dezenas de megabytes.
 var LARGURA_MINIATURA = 220;
 
-var PERIODOS = {
-  SEMANAL: { dias: 7, nome: 'semanal' },
-  MENSAL: { dias: 30, nome: 'mensal' },
-  TRIMESTRAL: { dias: 92, nome: 'trimestral' }
-};
+/**
+ * O período que cada relatório cobre, em datas de calendário.
+ *
+ * São a semana, o mês e o trimestre CORRENTES, inteiros — do primeiro ao último
+ * dia —, e não "os últimos sete dias". A diferença não é detalhe: a agenda de uma
+ * casa de show é feita para a frente. Contando para trás a partir de hoje, um
+ * relatório tirado dia 10 não encontra nenhum show marcado para o dia 15, e sai
+ * vazio mesmo com a agenda cheia — foi exatamente o que aconteceu.
+ */
+function periodoDoRelatorio(nome) {
+  var hoje = new Date();
+  var de, ate, titulo;
+
+  if (nome === 'SEMANAL') {
+    // Semana de segunda a domingo. getDay() devolve 0 para domingo.
+    var diaDaSemana = (hoje.getDay() + 6) % 7;
+    de = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - diaDaSemana);
+    ate = new Date(de.getFullYear(), de.getMonth(), de.getDate() + 6);
+    titulo = 'semanal';
+  } else if (nome === 'MENSAL') {
+    de = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    ate = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+    titulo = 'mensal';
+  } else if (nome === 'TRIMESTRAL') {
+    var primeiroMes = Math.floor(hoje.getMonth() / 3) * 3;
+    de = new Date(hoje.getFullYear(), primeiroMes, 1);
+    ate = new Date(hoje.getFullYear(), primeiroMes + 3, 0);
+    titulo = 'trimestral';
+  } else {
+    return null;
+  }
+
+  ate.setHours(23, 59, 59, 999);
+  return { de: de, ate: ate, nome: titulo };
+}
 
 /**
  * Monta o relatório do período em PDF, com as artes em miniatura e o que aconteceu
@@ -165,11 +204,11 @@ var PERIODOS = {
  */
 function painelRelatorio(chave, periodo) {
   exigirChave(chave);
-  var faixa = PERIODOS[String(periodo || '').toUpperCase()];
+  var faixa = periodoDoRelatorio(String(periodo || '').toUpperCase());
   if (!faixa) throw new Error('Período desconhecido: ' + periodo);
 
-  var ate = new Date();
-  var de = new Date(ate.getTime() - faixa.dias * 24 * 3600 * 1000);
+  var de = faixa.de;
+  var ate = faixa.ate;
 
   var progs = linhas(ABA.PROGRAMACOES).filter(function (p) {
     var d = paraData(p.DataShow);
