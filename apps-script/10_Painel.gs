@@ -370,7 +370,7 @@ function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
       'preto e branco de alto contraste, integradas ao fundo da arte. Cada show ' +
       'sai nos três layouts do kit, sem perder a marca do bar.</p></div>' +
     '</div>' +
-    rodape(1) + '</section>';
+    rodape(ate) + '</section>';
 
   var paginas = progs.map(function (p, i) {
     var artes = {};
@@ -417,8 +417,10 @@ function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
       (minis.length ? '<div class="artes">' + minis.join('') + '</div>'
         : '<p class="nota">As artes deste show não estão guardadas.</p>') +
       tabela +
-      (p.Avisos ? '<p class="nota"><b>Avisos da produção:</b> ' + p.Avisos + '</p>' : '') +
-      rodape(i + 2) + '</section>';
+      (avisosLegiveis(p.Avisos)
+        ? '<p class="nota"><b>Avisos da produção:</b> ' + avisosLegiveis(p.Avisos) + '</p>'
+        : '') +
+      rodape(ate) + '</section>';
   }).join('');
 
   return '<!doctype html><html><head><meta charset="utf-8">' +
@@ -457,9 +459,34 @@ function marcaDaCapa(progs) {
   return '<div class="marca">Woodstock<i>Rock Bar</i></div>';
 }
 
-function rodape(pagina) {
-  return '<p class="rodape"><span>Woodstock Rock Bar · prestação de contas</span>' +
-    '<span>' + pagina + '</span></p>';
+/**
+ * O rodapé de cada seção.
+ *
+ * Sem número de página, de propósito. O relatório flui entre páginas — uma tabela
+ * longa continua na folha seguinte —, e em HTML não há como saber em que página um
+ * trecho vai cair. A versão antiga numerava na mão e errava: a página 3 do arquivo
+ * dizia "2", porque a contagem não incluía a capa. Número errado é pior que
+ * nenhum, porque quem lê confia nele.
+ */
+function rodape(ate) {
+  return '<p class="rodape">Woodstock Rock Bar · prestação de contas · ' +
+    fmt(ate, 'MM/yyyy') + '</p>';
+}
+
+/**
+ * Deixa os avisos da produção legíveis para quem não escreveu o sistema.
+ *
+ * Eles carregam medições cruas — {'bordas': {'visivel': 0.514, 'buracos': 0.0}} —
+ * que servem para investigar um defeito e não dizem nada a quem lê um relatório de
+ * prestação de contas. O recado fica; a conta sai.
+ */
+function avisosLegiveis(texto) {
+  return String(texto || '')
+    .replace(/\s*\(medidas:[^)]*\)/g, '')
+    .replace(/\s*\(medida [^)]*\)/g, '')
+    .replace(/\s*\(\{[^}]*\}\)/g, '')
+    .replace(/\s*\|\s*/g, ' · ')
+    .trim();
 }
 
 /**
@@ -477,13 +504,22 @@ function estiloDoRelatorio() {
   var TITULO = "Anton, 'Arial Narrow', Impact, sans-serif";
   var TEXTO = "'Barlow Semi Condensed', 'Arial Narrow', Arial, sans-serif";
 
-  return '@page{size:A4 landscape;margin:0}' +
+  // A margem fica na PÁGINA, não dentro de cada seção. É o que faz um show cuja
+  // tabela passa de uma página continuar com margem na página seguinte: a margem
+  // da seção valeria uma vez só, e o conteúdo da segunda página encostaria na
+  // borda do papel.
+  return '@page{size:A4 landscape;margin:14mm 18mm}' +
     '*{box-sizing:border-box;margin:0;padding:0}' +
     'body{font-family:' + TEXTO + ';color:' + TINTA + ';background:' + CREME + '}' +
-    '.folha{width:297mm;height:209mm;padding:16mm 18mm;position:relative;' +
-      'page-break-after:always;overflow:hidden}' +
-    '.folha.clara{background:' + CREME + '}' +
-    '.capa{background:' + CREME + ';color:' + TINTA + '}' +
+
+    // As seções NÃO têm altura fixa. Tinham, com o que sobrava cortado fora, e era
+    // a causa de quase todos os defeitos deste relatório: a tabela de um show com
+    // muitas publicações era decepada no meio de uma linha, e o rodapé — que ficava
+    // preso no pé da caixa — era desenhado POR CIMA das linhas. Deixando o conteúdo
+    // fluir, ele passa para a página seguinte em vez de sumir.
+    '.folha{page-break-before:always}' +
+    '.folha:first-child{page-break-before:avoid}' +
+    '.capa{height:180mm;display:flex;flex-direction:column;justify-content:space-between}' +
 
     'img.marca{width:58mm;display:block}' +
     'div.marca{font-family:' + TITULO + ';font-size:40px;color:' + VERMELHO + ';line-height:1}' +
@@ -495,12 +531,12 @@ function estiloDoRelatorio() {
     '.capa h1{font-family:' + TITULO + ';font-size:62px;line-height:1.02;margin-top:6px;' +
       'text-transform:uppercase;color:' + TINTA + '}' +
     '.capa h1 em{font-style:normal;color:' + VERMELHO + '}' +
-    '.numeros{display:flex;gap:10mm;position:absolute;left:18mm;right:18mm;bottom:28mm}' +
+    '.numeros{display:flex;gap:10mm;margin-top:auto}' +
     '.num{flex:1;border-top:2px solid ' + VERMELHO + ';padding-top:6px}' +
     '.num b{display:block;font-family:' + TITULO + ';font-size:34px;line-height:1;' +
       'color:' + TINTA + '}' +
     '.num span{font-size:11px;color:#6b615b}' +
-    '.capa .pe{position:absolute;left:18mm;bottom:16mm;font-size:10px;color:#9a8e86}' +
+    '.capa .pe{font-size:10px;color:#9a8e86;margin-top:8mm}' +
     'h2{font-family:' + TITULO + ';font-size:34px;text-transform:uppercase;line-height:1.05;' +
       'border-bottom:3px solid ' + VERMELHO + ';padding-bottom:5px;margin-bottom:8px}' +
     'h2 .periodo{float:right;font-family:' + TEXTO + ';font-size:12px;color:#7a6f68;' +
@@ -511,6 +547,8 @@ function estiloDoRelatorio() {
     '.selos b{color:' + VERMELHO + '}' +
     '.linhaFina{font-size:11px;color:#6b615b;margin-bottom:8px}' +
     'table{border-collapse:collapse;width:100%;font-size:10.5px;margin-top:6px}' +
+    'thead{display:table-header-group}' +   // repete o cabeçalho em cada página
+    'tr{page-break-inside:avoid}' +
     'th{text-align:left;font-weight:700;font-size:9px;letter-spacing:2px;' +
       'text-transform:uppercase;color:#8a7f78;border-bottom:1px solid #ddd3cb;padding:5px 6px}' +
     'td{border-bottom:1px solid #ece4dd;padding:6px}' +
@@ -524,15 +562,21 @@ function estiloDoRelatorio() {
       'text-transform:uppercase;margin-bottom:4px}' +
     '.colunas p{font-size:10.5px;line-height:1.5}' +
     '.artes{display:flex;flex-wrap:wrap;gap:5mm;margin:6mm 0}' +
-    '.artes figure{width:38mm}' +
-    '.artes img{width:100%;border:1px solid #ddd3cb;display:block}' +
+    // Feed é 4:5 e story é 9:16. Dando a mesma LARGURA às duas, o story fica muito
+    // mais alto e a fileira sai escalonada, com as legendas em alturas diferentes.
+    // Fixando a ALTURA, as peças ficam alinhadas e cada uma guarda sua proporção.
+    '.artes figure{display:flex;flex-direction:column}' +
+    '.artes img{height:44mm;width:auto;border:1px solid #ddd3cb;display:block}' +
     '.artes figcaption{font-size:9px;color:#8a7f78;padding-top:3px}' +
     '.posts td{font-size:10px}' +
     '.s-PUBLICADO{color:#1d7a3c;font-weight:700}' +
     '.s-FALHA{color:' + VERMELHO + ';font-weight:700}' +
     '.nota{font-size:10px;color:#6b615b;margin-top:5mm}' +
-    '.rodape{position:absolute;left:18mm;right:18mm;bottom:10mm;display:flex;' +
-      'justify-content:space-between;font-size:9px;color:#9a8e86;' +
+    // O rodapé FLUI no fim da seção. Preso no pé da página, ele era desenhado por
+    // cima das linhas da tabela quando o show tinha muitas publicações — e, depois
+    // que as seções deixaram de ter altura fixa, foi parar no fim do documento
+    // inteiro, sumindo das páginas.
+    '.rodape{margin-top:8mm;font-size:9px;color:#9a8e86;' +
       'border-top:1px solid #ece4dd;padding-top:5px}';
 }
 
