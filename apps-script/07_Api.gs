@@ -67,6 +67,10 @@ function doPost(e) {
         // O mesmo relatório do painel, pela API. Serve para conferir o arquivo sem
         // depender do navegador, e para quem quiser automatizar o envio dele.
         return json({ ok: true, resultado: painelRelatorio(corpo.chave, corpo.periodo) });
+      case 'cancelar_programacao':
+        // Cancela a programação inteira e tira as publicações dela da fila. Existe
+        // para limpar inscrição de teste sem precisar abrir o painel.
+        return json({ ok: true, resultado: cancelarProgramacao(corpo.id) });
       case 'destravar':
         return json({ ok: true, resultado: destravarProducao() });
       case 'recalcular':
