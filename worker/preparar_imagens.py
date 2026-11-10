@@ -301,7 +301,7 @@ def igualar_a_luz(pessoa, alvo, alvo_forca=None, limite=(0.6, 1.8)):
     return ajustada
 
 
-def juntar_integrantes(recortadas, destino, encosto=0.03):
+def juntar_integrantes(recortadas, destino, encosto=0.03, fileiras=1):
     """
     Monta uma foto de banda a partir de fotos separadas de cada integrante.
 
@@ -375,17 +375,20 @@ def juntar_integrantes(recortadas, destino, encosto=0.03):
     # guitarra tem o instrumento no alto, e alinhar por ele afunda a cabeça da
     # pessoa em relação às outras.
     cabecas = [topo_da_cabeca(p) for p in ajustadas]
-    mais_fundo = max(cabecas)
-    deslocamentos = [mais_fundo - c for c in cabecas]
-    altura_total = max(p.height + d for p, d in zip(ajustadas, deslocamentos))
-
     encaixe = int(alvo_tronco * encosto)
-    largura = sum(p.width for p in ajustadas) - encaixe * (len(ajustadas) - 1)
-    tela = Image.new("RGBA", (max(largura, 1), altura_total), (0, 0, 0, 0))
-    x = 0
-    for p, desloca in zip(ajustadas, deslocamentos):
-        tela.alpha_composite(p, (x, desloca))
-        x += p.width - encaixe
+
+    if fileiras >= 2 and len(ajustadas) >= 3:
+        tela, deslocamentos = _em_duas_fileiras(ajustadas, cabecas, encaixe)
+    else:
+        mais_fundo = max(cabecas)
+        deslocamentos = [mais_fundo - c for c in cabecas]
+        altura_total = max(p.height + d for p, d in zip(ajustadas, deslocamentos))
+        largura = sum(p.width for p in ajustadas) - encaixe * (len(ajustadas) - 1)
+        tela = Image.new("RGBA", (max(largura, 1), altura_total), (0, 0, 0, 0))
+        x = 0
+        for p, desloca in zip(ajustadas, deslocamentos):
+            tela.alpha_composite(p, (x, desloca))
+            x += p.width - encaixe
 
     # 4. O grupo termina junto, dissolvendo no escuro a partir de uma linha só.
     #
@@ -402,6 +405,55 @@ def juntar_integrantes(recortadas, destino, encosto=0.03):
 
     tela.save(destino)
     return destino, len(ajustadas)
+
+
+def _em_duas_fileiras(pessoas, cabecas, encaixe):
+    """
+    Põe a banda em duas fileiras, como numa foto de grupo.
+
+    Enfileirar todo mundo lado a lado forma uma figura larga e baixa. Num espaço
+    alto e estreito — a peça da coluna vermelha — essa figura vira uma tirinha
+    pequena boiando num vazio: para caber na largura, ela encolhe na altura, e
+    sobra mais de metade da peça vazia.
+
+    Em duas fileiras a banda fica mais alta que larga e passa a ocupar o espaço. É
+    também como uma banda se posiciona de verdade para uma foto: alguns atrás,
+    outros à frente. A fileira da frente é desenhada POR CIMA e deslocada meia
+    pessoa para o lado, encaixando nos vãos — é o que dá a sensação de grupo
+    reunido, em vez de duas fileiras empilhadas.
+
+    Devolve a tela e o deslocamento vertical de cada pessoa, na ordem recebida.
+    """
+    meio = (len(pessoas) + 1) // 2
+    atras = list(range(meio))
+    frente = list(range(meio, len(pessoas)))
+
+    def largura_da(indices):
+        return (sum(pessoas[i].width for i in indices)
+                - encaixe * max(len(indices) - 1, 0))
+
+    altura_tipica = int(np.median([p.height for p in pessoas]))
+    # A frente desce cerca de um terço de uma pessoa: o bastante para as cabeças
+    # não se alinharem numa régua, e pouco para ninguém sumir atrás de ninguém.
+    degrau = int(altura_tipica * 0.34)
+
+    desloca_v = [0] * len(pessoas)
+    mais_fundo = max(cabecas)
+    for i in atras:
+        desloca_v[i] = mais_fundo - cabecas[i]
+    for i in frente:
+        desloca_v[i] = mais_fundo - cabecas[i] + degrau
+
+    largura = max(largura_da(atras), largura_da(frente))
+    altura = max(pessoas[i].height + desloca_v[i] for i in range(len(pessoas)))
+    tela = Image.new("RGBA", (max(largura, 1), altura), (0, 0, 0, 0))
+
+    for grupo in (atras, frente):          # a frente por cima, desenhada depois
+        x = (largura - largura_da(grupo)) // 2
+        for i in grupo:
+            tela.alpha_composite(pessoas[i], (x, desloca_v[i]))
+            x += pessoas[i].width - encaixe
+    return tela, desloca_v
 
 
 def tom_da_pessoa(pessoa):
@@ -1103,8 +1155,16 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
             avisos.append("veio só uma foto recortada; não havia o que juntar")
         else:
             montada = os.path.join(trabalho, "banda_montada.png")
+            montada_alta = os.path.join(trabalho, "banda_montada_alta.png")
             try:
                 _, quantos = juntar_integrantes(para_juntar, montada)
+                # Um segundo arranjo, em duas fileiras, para a peça de vão alto e
+                # estreito. Enfileirada, a banda vira uma tirinha boiando lá; em
+                # duas fileiras ela preenche. Ver _em_duas_fileiras.
+                if len(para_juntar) >= 3:
+                    juntar_integrantes(para_juntar, montada_alta, fileiras=2)
+                else:
+                    montada_alta = montada
                 houve_montagem = True
                 avisos.append("montei %d integrantes lado a lado numa foto só da banda"
                               % quantos)
@@ -1131,7 +1191,8 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
     # aparece menor. É o preço certo: melhor a banda inteira menor do que um
     # integrante grande fazendo as vezes do grupo.
     if houve_montagem:
-        mais_deitada = mais_em_pe = montada
+        mais_deitada = montada            # peças A e C: vão largo
+        mais_em_pe = montada_alta         # peça B: vão alto, banda em duas fileiras
 
     saida = {}
     tratar = os.path.join(pasta_gerador, "tratar_foto.py")

@@ -94,6 +94,30 @@ for peca, chave in (("A", "photo"), ("B", "photoB")):
              "na peça %s a banda começa a %.0f%% da altura, dentro do respiro de %.0f%%"
              % (peca, topo * 100, composicao.FOLGA_TOPO[peca] * 100))
 
+print("\n• Num vão alto a banda entra em duas fileiras, para não boiar")
+# Três pessoas lado a lado formam uma figura larga e baixa. No vão alto e estreito
+# da peça B, para caber na largura ela encolhe na altura e vira uma tirinha boiando
+# num vazio — foi a reclamação de "recortes flutuando no meio do layout". Em duas
+# fileiras a banda fica mais alta que larga e passa a ocupar o espaço.
+tres = [os.path.join(RAIZ, "gerador", "bands", n)
+        for n in ("kundera_solo_bw.png", "pelada_bw.png", "kundera_trio_bw.png")]
+ocupacoes = {}
+for nome, fileiras in (("fila", 1), ("duas fileiras", 2)):
+    alvo = os.path.join(tempfile.mkdtemp(), "m.png")
+    pi.juntar_integrantes(tres, alvo, fileiras=fileiras)
+    posta = os.path.join(tempfile.mkdtemp(), "b.png")
+    ocupacoes[nome] = composicao.encaixar(alvo, posta, "B")
+conferir(ocupacoes["duas fileiras"] > ocupacoes["fila"] * 1.2,
+         "em duas fileiras a banda ocupa bem mais da peça alta (%.0f%% contra %.0f%%)"
+         % (ocupacoes["duas fileiras"] * 100, ocupacoes["fila"] * 100))
+
+# E a fileira da frente tem de ficar POR CIMA, senão as pessoas se cortam.
+alvo = os.path.join(tempfile.mkdtemp(), "duas.png")
+pi.juntar_integrantes(tres, alvo, fileiras=2)
+duas = Image.open(alvo).convert("RGBA")
+conferir(duas.height > duas.width * 0.8,
+         "a montagem em duas fileiras é alta (%dx%d)" % duas.size)
+
 print("\n• Integrantes montados numa banda: a banda vai em TODAS as peças")
 # O defeito: a montagem é larga, então ia para as peças A e C, e a peça B ficava
 # com a foto de um integrante sozinho — um show de banda anunciado com o retrato
