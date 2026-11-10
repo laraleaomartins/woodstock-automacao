@@ -107,6 +107,14 @@ jobs:
           npm --prefix gerador install --no-audit --no-fund
           npm --prefix gerador exec -- playwright install --with-deps chromium
 
+      # Quanto de memória a máquina tem, escrito antes de começar. Quando o sistema
+      # operacional mata o processo por falta de memória, não sobra erro nenhum: a
+      # execução simplesmente para no meio. Ter este número no registro é o que
+      # permite dizer depois se foi isso ou outra coisa.
+      - name: Memória disponível antes de começar
+        if: steps.fila.outputs.tem == 'sim'
+        run: free -m; nproc
+
       - name: Produzir as artes pendentes
         if: steps.fila.outputs.tem == 'sim'
         env:

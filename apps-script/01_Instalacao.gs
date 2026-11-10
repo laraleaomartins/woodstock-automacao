@@ -335,8 +335,42 @@ function configurarGithub(token, repositorio) {
   return 'Guardada. Resultado do primeiro aviso: ' + ultimo;
 }
 
-/** Dispara a oficina agora, sem esperar ciclo nenhum. */
+/**
+ * Dispara a oficina agora, sem esperar ciclo nenhum.
+ *
+ * Devolve o que REALMENTE aconteceu. A versão antiga respondia "Pedido enviado ao
+ * GitHub" sempre, até quando não havia nada na fila e nada era enviado — e aí quem
+ * pediu ficava esperando uma execução que nunca ia existir, sem saber por quê.
+ */
 function dispararOficina() {
+  var pendentes = linhas(ABA.PROGRAMACOES).filter(function (p) {
+    return p.Situacao === SIT.AGUARDANDO_ARTES;
+  }).length;
+  if (!pendentes) {
+    return 'Nada na fila: nenhuma programação esperando arte, então não chamei a oficina.';
+  }
   cutucarGithub();
-  return 'Pedido enviado ao GitHub.';
+  return pendentes + ' programação(ões) na fila; a oficina foi chamada.';
+}
+
+/**
+ * Devolve à fila, na hora, o que estiver travado em produção — sem esperar os 45
+ * minutos do vigia. Serve para quando já se sabe que a oficina caiu, em vez de
+ * ficar olhando "gerando artes" sem poder fazer nada.
+ */
+function destravarProducao() {
+  var soltas = [];
+  linhas(ABA.PROGRAMACOES).forEach(function (p) {
+    if (p.Situacao !== SIT.GERANDO_ARTES) return;
+    gravarCampos(ABA.PROGRAMACOES, p._linha, {
+      Situacao: SIT.AGUARDANDO_ARTES,
+      Erro: 'Destravada à mão e devolvida para a fila.'
+    });
+    registrar('AVISO', p.ID, 'DESTRAVADA_A_MAO', 'Voltou para a fila por pedido.');
+    soltas.push(String(p.ID));
+  });
+  if (soltas.length) cutucarGithub();
+  return soltas.length
+    ? soltas.length + ' programação(ões) voltaram para a fila: ' + soltas.join(', ')
+    : 'Nenhuma programação estava travada em produção.';
 }

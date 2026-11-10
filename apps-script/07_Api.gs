@@ -63,6 +63,8 @@ function doPost(e) {
         return json({ ok: true, resultado: configurarGithub(corpo.token, corpo.repo) });
       case 'disparar_oficina':
         return json({ ok: true, resultado: dispararOficina() });
+      case 'destravar':
+        return json({ ok: true, resultado: destravarProducao() });
       case 'recalcular':
         return json({ ok: true, resultado: recalcularProgramacao(corpo.id) });
       case 'aprovar':

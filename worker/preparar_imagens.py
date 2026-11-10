@@ -429,6 +429,32 @@ def fundo_neutro(caminho, lado=700, parte=0.18):
     return neutro, {"rugosidade": round(rugosidade, 2), "tom": round(diferenca, 1)}
 
 
+def memoria_em_uso():
+    """
+    Quanto de memória este processo está ocupando, em MB. Zero onde não dá para saber.
+
+    Existe por um motivo específico: quando o sistema operacional mata o processo
+    por falta de memória, não sobra erro nenhum — o programa deixa de existir no
+    meio da linha. Sem deixar o consumo escrito no registro à medida que o trabalho
+    anda, não há como distinguir "morreu de falta de memória" de "foi interrompido
+    por outro motivo", e as duas coisas exigem correções opostas.
+    """
+    try:
+        with open("/proc/self/status", encoding="utf-8") as f:
+            for linha in f:
+                if linha.startswith("VmRSS:"):
+                    return int(linha.split()[1]) // 1024
+    except Exception:
+        pass
+    return 0
+
+
+def anotar_memoria(onde):
+    mb = memoria_em_uso()
+    if mb:
+        print("  [memória] %s: %d MB" % (onde, mb), flush=True)
+
+
 def em_resolucao_de_trabalho(caminho, lado=None):
     """Reduz a foto ao tamanho em que o recorte é calculado. Ver LADO_TRABALHO."""
     import io as _io
@@ -480,6 +506,7 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
     # integrante daquela foto some do grupo. Então, antes de desistir, tenta de novo
     # menor. Foto menor recorta pior nos fios de cabelo, e é muito melhor que um
     # integrante faltando.
+    anotar_memoria("antes de recortar " + os.path.basename(entrada))
     cortado = None
     ultimo_erro = None
     for lado in (LADO_TRABALHO, int(LADO_TRABALHO * 0.7), int(LADO_TRABALHO * 0.5)):
@@ -498,6 +525,7 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
     if not tem_transparencia_real(saida):
         raise RuntimeError("o recorte saiu sem transparência — foto provavelmente ruim")
 
+    anotar_memoria("recorte feito")
     principal = _mascara(saida)
     if principal.sum() < principal.size * 0.04:
         raise RuntimeError("sobrou quase nada da foto depois do recorte (%.1f%% da imagem)"
@@ -536,6 +564,7 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
     except Exception as e:
         aviso = "não consegui conferir a qualidade do recorte: %s" % e
 
+    anotar_memoria("conferência terminada")
     return saida, aviso, concordancia
 
 
