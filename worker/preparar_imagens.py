@@ -86,17 +86,23 @@ CONCORDANCIA_RESGATE = 0.60  # abaixo disso, juntar cola fundo: fica só o melho
 # Abaixo disto a montagem de integrantes é recusada: o recorte está tão incerto
 # que pôr essa pessoa ao lado das outras não vai dar certo.
 #
-# O número foi refeito depois que o recorte passou a usar matting. Antes a linha
-# ficava em 0,60, herdada da época da máscara dura, quando discordância alta
-# significava mesmo um bloco de fundo colado na pessoa. Medido agora, na foto mais
-# difícil do acervo (a pessoa dentro da luz azul): concordância de 33%, e a arte
-# montada saiu boa — sem bloco de fundo, com as cordas da guitarra inteiras e só o
-# contorno do cabelo um pouco irregular. Com a linha em 0,60 essa inscrição era
-# recusada e a banda mandada refazer trabalho à toa.
+# Esta linha já desceu para 0,25 e voltou, e a ida e a volta ensinaram a diferença
+# que importa: um recorte duvidoso SOZINHO numa peça some no escuro do fundo; o
+# MESMO recorte, ao lado de dois recortes limpos, é escancarado.
 #
-# A trava não foi removida, só recalibrada bem abaixo do pior caso que se provou
-# aceitável. Fotos boas medem de 96% a 97%.
-CONCORDANCIA_MONTAGEM = 0.25
+# A foto que ensinou isso é a do músico em estúdio com luz azul, concordância 0,33.
+# Sozinha, a arte saiu boa. Na banda montada, ela arrastou um bloco retangular do
+# fundo dela para dentro do grupo — o recortador principal marcou 63,8% da imagem
+# como pessoa, e o de conferência, 21,1%. Tentar ficar só com o que os dois
+# concordam foi pior ainda: o de conferência achava que a pessoa era a GUITARRA, e
+# o terceiro integrante virou uma cravelha. Nenhum dos dois dá conta dessa foto.
+#
+# Então, para montagem, vale a linha alta: é melhor pedir outra foto do que pôr um
+# bloco de fundo — ou um instrumento — no lugar de um músico. Fora da montagem,
+# a mesma foto continua sendo aproveitada, porque ali existe a rede de segurança
+# que usa a foto inteira. Fotos boas medem de 96% a 97%.
+CONCORDANCIA_MONTAGEM = 0.60
+
 
 # Resolução em que o recorte é calculado. O maior espaço de foto em qualquer peça
 # tem 1080 de largura e 1050 de altura, então passar disso é detalhe que ninguém
@@ -250,30 +256,47 @@ def topo_da_cabeca(pessoa, fatia=0.22):
     return int(cabeca[0]) if len(cabeca) else 0
 
 
-def igualar_a_luz(pessoa, alvo, limite=(0.6, 1.8)):
+def igualar_a_luz(pessoa, alvo, alvo_forca=None, limite=(0.6, 1.8)):
     """
-    Põe todo mundo na mesma luz.
+    Põe todo mundo na mesma luz e no mesmo contraste.
 
-    Fotos tiradas em noites diferentes chegam com luzes diferentes: uma no claro do
-    palco, outra num canto escuro. Lado a lado, quem veio do escuro parece uma
-    sombra entre duas pessoas, e a montagem não convence. Aqui o brilho de cada um
-    é puxado para o mesmo ponto, por multiplicação — que mantém o contraste da foto
-    em vez de achatá-la como somar um valor faria.
+    Fotos tiradas em noites diferentes chegam diferentes de duas formas, e as duas
+    denunciam a colagem: uma vem mais escura que a outra, e uma vem mais DURA que a
+    outra — preto fechado e branco estourado, típico de palco, ao lado de uma foto
+    de estúdio, macia. Lado a lado, a dura parece pertencer a outro ensaio.
 
-    O ganho é limitado de propósito: foto muito escura, forçada até o alvo, vira
-    uma mancha cinza sem preto nenhum. Melhor ficar um pouco mais escura que os
-    outros do que virar neblina.
+    Então o ajuste tem dois passos. Primeiro o contraste é puxado para o do grupo,
+    girando os tons em torno do próprio meio da pessoa — assim o que muda é só o
+    quanto claro e escuro se afastam, e não quem ela é. Depois o brilho vai para o
+    ponto comum, por multiplicação, que preserva o contraste recém-ajustado.
+
+    Os dois ajustes são limitados de propósito: foto muito escura, forçada até o
+    alvo, vira mancha cinza; contraste forçado demais achata rosto. Melhor ficar um
+    pouco fora do tom que virar neblina.
     """
     alfa = np.array(pessoa.split()[3])
     dentro = alfa > 128
     if dentro.sum() < 100:
         return pessoa
+
     rgb = np.array(pessoa.convert("RGB"), float)
-    atual = float(np.median(rgb[dentro]))
+    meu = tom_da_pessoa(pessoa)
+    if not meu:
+        return pessoa
+    atual, forca = meu
     if atual <= 1:
         return pessoa
-    ganho = min(max(alvo / atual, limite[0]), limite[1])
-    ajustada = Image.fromarray(np.clip(rgb * ganho, 0, 255).astype("uint8"), "RGB")
+
+    if alvo_forca and forca > 1:
+        giro = min(max(alvo_forca / forca, 0.7), 1.4)
+        rgb = (rgb - atual) * giro + atual
+
+    novo_meio = float(np.median(np.clip(rgb, 0, 255)[dentro]))
+    if novo_meio > 1:
+        ganho = min(max(alvo / novo_meio, limite[0]), limite[1])
+        rgb = rgb * ganho
+
+    ajustada = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"), "RGB")
     ajustada.putalpha(pessoa.split()[3])
     return ajustada
 
@@ -333,15 +356,19 @@ def juntar_integrantes(recortadas, destino, encosto=0.03):
                      for p in ajustadas]
         mais_alta = max(p.height for p in ajustadas)
 
-    # 2. Mesma luz para todos.
-    alvos = []
-    for p in ajustadas:
-        alfa = np.array(p.split()[3]) > 128
-        if alfa.sum() > 100:
-            alvos.append(float(np.median(np.array(p.convert("RGB"), float)[alfa])))
-    if alvos:
-        alvo_luz = float(np.median(alvos))
-        ajustadas = [igualar_a_luz(p, alvo_luz) for p in ajustadas]
+    # 2. Mesma luz E mesmo contraste para todos.
+    #
+    # Só igualar o brilho não basta: fotos de palco vêm duras, com preto fechado e
+    # branco estourado, e fotos de estúdio vêm macias. Lado a lado, uma parece
+    # pertencer a outro ensaio. Igualando também o espalhamento dos tons, as três
+    # passam a ter a mesma "pele" — que é o que faz acreditar que foram
+    # fotografadas juntas.
+    medidas = [tom_da_pessoa(p) for p in ajustadas]
+    validas = [m for m in medidas if m]
+    if validas:
+        alvo_luz = float(np.median([m[0] for m in validas]))
+        alvo_forca = float(np.median([m[1] for m in validas]))
+        ajustadas = [igualar_a_luz(p, alvo_luz, alvo_forca) for p in ajustadas]
 
     # 3. Cabeças na mesma linha, com os ombros se encostando. O alinhamento é pela
     # cabeça de cada um (ver topo_da_cabeca), não pelo alto do arquivo: quem ergue a
@@ -359,8 +386,71 @@ def juntar_integrantes(recortadas, destino, encosto=0.03):
     for p, desloca in zip(ajustadas, deslocamentos):
         tela.alpha_composite(p, (x, desloca))
         x += p.width - encaixe
+
+    # 4. O grupo termina junto, dissolvendo no escuro a partir de uma linha só.
+    #
+    # Cada foto foi cortada num lugar diferente do corpo — um na coxa, outro no
+    # quadril — e, postas lado a lado, cada pessoa acabava numa linha reta própria,
+    # no meio do ar. É isso que faz os recortes parecerem adesivos flutuando.
+    #
+    # Dissolvendo todos a partir da MESMA linha, o grupo passa a emergir do escuro
+    # junto, como numa foto de estúdio com fundo baixo. A linha é a do corpo que
+    # termina mais cedo: dali para baixo ninguém mais está inteiro, então é dali
+    # que a sombra começa.
+    fins = [desloca + fim_do_corpo(p) for p, desloca in zip(ajustadas, deslocamentos)]
+    tela = dissolver_a_partir(tela, min(fins))
+
     tela.save(destino)
     return destino, len(ajustadas)
+
+
+def tom_da_pessoa(pessoa):
+    """O brilho típico e a força do contraste de quem aparece. None se não dá."""
+    dentro = np.array(pessoa.split()[3]) > 128
+    if dentro.sum() < 100:
+        return None
+    tons = np.array(pessoa.convert("RGB"), float)[dentro]
+    return float(np.median(tons)), float(np.percentile(tons, 85) - np.percentile(tons, 15))
+
+
+def fim_do_corpo(pessoa, cheio=0.45):
+    """
+    A linha onde o corpo desta pessoa deixa de estar inteiro.
+
+    É onde a silhueta ainda é larga pela última vez. Abaixo disso só há pernas,
+    pés ou nada — e, numa foto cortada na cintura, é o próprio corte.
+    """
+    larguras = (np.array(pessoa.split()[3]) > 40).sum(axis=1)
+    if not larguras.max():
+        return pessoa.height
+    largas = np.where(larguras >= larguras.max() * cheio)[0]
+    return int(largas[-1]) if len(largas) else pessoa.height
+
+
+def dissolver_a_partir(tela, linha, dissolver=0.22, resta=0.08):
+    """
+    Faz o grupo inteiro sumir no escuro a partir de uma linha só.
+
+    Escurece o tom primeiro e apaga a opacidade depois, na mesma ordem e pelo mesmo
+    motivo de composicao.casar_com_fundo: só apagar deixaria silhuetas translúcidas
+    sumindo, e dá para ver que havia um recorte ali.
+    """
+    alto = tela.height
+    inicio = max(0, min(int(linha), alto - 2))
+    faixa = max(2, int(alto * dissolver))
+
+    rampa = np.ones(alto, float)
+    fim = min(alto, inicio + faixa)
+    if fim > inicio:
+        rampa[inicio:fim] = np.linspace(1.0, 0.0, fim - inicio)
+    rampa[fim:] = 0.0
+
+    tom = np.clip(rampa, resta, 1.0)
+    rgb = np.array(tela.convert("RGB"), float) * tom[:, None, None]
+    alfa = np.array(tela.split()[3], float) * rampa[:, None]
+    pronta = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8"), "RGB")
+    pronta.putalpha(Image.fromarray(alfa.astype("uint8"), "L"))
+    return pronta
 
 
 def achar_cabeca(caminho):

@@ -379,11 +379,15 @@ print("\n• A trava da montagem recusa só o recorte perdido, não o apenas dif
 # sem bloco de fundo e com as cordas da guitarra inteiras. Manter 0,60 recusava
 # inscrição que hoje sai bem. Este teste prende a linha nova: 33% passa, e a trava
 # continua existindo para o recorte que se perdeu de vez.
-conferir(pi.CONCORDANCIA_MONTAGEM < 0.33,
-         "33%% de concordância (o pior caso que se provou aceitável) passa, "
-         "porque a linha está em %.0f%%" % (pi.CONCORDANCIA_MONTAGEM * 100))
-conferir(pi.CONCORDANCIA_MONTAGEM > 0,
-         "e a trava continua de pé para o recorte que se perdeu de vez")
+# A linha desceu para 0,25 e voltou. O que a fez voltar: a foto de concordância
+# 0,33 saía bem SOZINHA, mas na banda montada arrastou um bloco do fundo dela para
+# dentro do grupo, ao lado de dois recortes limpos. Recorte duvidoso sozinho some
+# no escuro; ao lado de recortes bons, é escancarado.
+conferir(pi.CONCORDANCIA_MONTAGEM > 0.33,
+         "33%% de concordância NÃO entra numa montagem (a linha está em %.0f%%)"
+         % (pi.CONCORDANCIA_MONTAGEM * 100))
+conferir(pi.CONCORDANCIA_RESGATE >= pi.CONCORDANCIA_MONTAGEM,
+         "e fora da montagem a mesma foto continua aproveitada, pela rede de segurança")
 
 
 def recorte_falso(concordancia):
@@ -407,20 +411,21 @@ try:
         Image.open(os.path.join(RAIZ, "gerador", "bands", "pelada_bw.png")) \
             .convert("RGB").save(os.path.join(opacas, n))
 
-    pi.recortar_em_processo_proprio = recorte_falso(0.33)
+    pi.recortar_em_processo_proprio = recorte_falso(0.80)
     gerador = tempfile.mkdtemp()
     os.makedirs(os.path.join(gerador, "bands"))
     for n in ("tratar_foto.py", "tratar_logo.py"):
         shutil.copy(os.path.join(RAIZ, "gerador", n), os.path.join(gerador, n))
     pi.preparar(opacas, gerador, "monta33", juntar=True)
-    conferir(True, "com 33% a montagem é feita, não recusada")
+    conferir(True, "com 80% a montagem é feita")
 
-    pi.recortar_em_processo_proprio = recorte_falso(0.10)
+    pi.recortar_em_processo_proprio = recorte_falso(0.33)
     try:
-        pi.preparar(opacas, tempfile.mkdtemp(), "monta10", juntar=True)
-        conferir(False, "com 10% deveria ter recusado a montagem")
+        pi.preparar(opacas, tempfile.mkdtemp(), "monta33", juntar=True)
+        conferir(False, "com 33% deveria ter recusado a montagem")
     except Exception as e:
-        conferir("não dá para juntar" in str(e), "com 10%% recusa: %s" % str(e)[:50])
+        conferir("não dá para juntar" in str(e),
+                 "com 33%% recusa, em vez de pôr um bloco de fundo no meio da banda")
 finally:
     pi.recortar_em_processo_proprio = original
 
