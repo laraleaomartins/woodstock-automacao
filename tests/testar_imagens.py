@@ -297,21 +297,27 @@ conferir(pi.CONCORDANCIA_MONTAGEM > 0,
 
 
 def recorte_falso(concordancia):
-    """Finge um recorte com a concordância pedida, para provar a decisão da trava."""
-    def fingido(entrada, saida, obrigatorio=False):
+    """
+    Finge um recorte com a concordância pedida, para provar a decisão da trava.
+
+    Substitui o recorte em processo separado, que é a fronteira que a preparação
+    usa de verdade. Trocar a função de dentro não adiantaria: ela roda noutro
+    processo, onde nada que este teste mude chega.
+    """
+    def fingido(entrada, saida):
         Image.open(entrada).convert("RGBA").save(saida)
-        return saida, None, concordancia
+        return None, concordancia
     return fingido
 
 
-original = pi.recortar_fundo
+original = pi.recortar_em_processo_proprio
 try:
     opacas = tempfile.mkdtemp()
     for n in ("foto1.png", "foto2.png"):
         Image.open(os.path.join(RAIZ, "gerador", "bands", "pelada_bw.png")) \
             .convert("RGB").save(os.path.join(opacas, n))
 
-    pi.recortar_fundo = recorte_falso(0.33)
+    pi.recortar_em_processo_proprio = recorte_falso(0.33)
     gerador = tempfile.mkdtemp()
     os.makedirs(os.path.join(gerador, "bands"))
     for n in ("tratar_foto.py", "tratar_logo.py"):
@@ -319,14 +325,14 @@ try:
     pi.preparar(opacas, gerador, "monta33", juntar=True)
     conferir(True, "com 33% a montagem é feita, não recusada")
 
-    pi.recortar_fundo = recorte_falso(0.10)
+    pi.recortar_em_processo_proprio = recorte_falso(0.10)
     try:
         pi.preparar(opacas, tempfile.mkdtemp(), "monta10", juntar=True)
         conferir(False, "com 10% deveria ter recusado a montagem")
     except Exception as e:
         conferir("não dá para juntar" in str(e), "com 10%% recusa: %s" % str(e)[:50])
 finally:
-    pi.recortar_fundo = original
+    pi.recortar_em_processo_proprio = original
 
 print("\n• Foto vazia é recusada em vez de virar arte quebrada")
 vazia = tempfile.mkdtemp()

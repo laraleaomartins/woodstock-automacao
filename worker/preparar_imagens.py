@@ -468,6 +468,39 @@ def em_resolucao_de_trabalho(caminho, lado=None):
     return im, dados.getvalue()
 
 
+def recortar_em_processo_proprio(entrada, saida):
+    """
+    Recorta a foto num processo separado, e devolve (aviso, concordância).
+
+    Por que não recortar aqui mesmo: o motor que executa os modelos reserva memória
+    num bloco próprio e NÃO a devolve ao terminar. Medido na oficina do GitHub, com
+    16 GB de máquina: 564 MB antes da primeira foto, 11.441 MB depois dela, 14.926
+    na segunda, 15.010 na terceira — e aí o sistema operacional matou o processo no
+    meio do trabalho, sem erro nenhum, porque não havia mais memória para carregar o
+    modelo seguinte.
+
+    Não adianta soltar as sessões nem chamar a faxina da linguagem: esse bloco vive
+    fora do alcance delas. O único jeito de devolver a memória é o processo acabar.
+    Então cada foto é recortada num processo que nasce, faz o seu recorte e morre —
+    e a memória volta inteira para a máquina.
+
+    O preço é recarregar o modelo a cada foto. Vale: antes, a partir da segunda foto
+    a produção simplesmente não terminava.
+
+    De quebra, uma foto que derrube o recortador deixa de derrubar a programação
+    inteira: morre o processo filho, e as outras fotos seguem.
+    """
+    pedido = subprocess.run(
+        [sys.executable, os.path.abspath(__file__), "--recortar", entrada, saida],
+        capture_output=True, text=True)
+    for linha in (pedido.stdout or "").splitlines():
+        if linha.startswith("RESULTADO "):
+            dados = json.loads(linha[len("RESULTADO "):])
+            return dados.get("aviso"), float(dados.get("concordancia", 1.0))
+    erro = (pedido.stderr or pedido.stdout or "").strip().splitlines()
+    raise RuntimeError("o recorte não terminou: " + (erro[-1] if erro else "sem saída"))
+
+
 def recortar_fundo(entrada, saida, obrigatorio=False):
     """
     Recorta o fundo e diz o quanto dá para confiar no resultado.
@@ -744,8 +777,7 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
             else:
                 # Ou vai entrar numa montagem — e aí separar é obrigatório, senão
                 # as pessoas não encaixam lado a lado — ou o fundo atrapalha.
-                _, aviso, concordancia = recortar_fundo(foto, destino,
-                                                        obrigatorio=juntar)
+                aviso, concordancia = recortar_em_processo_proprio(foto, destino)
                 if aviso:
                     avisos.append("foto%d: %s" % (i + 1, aviso))
                 if juntar:
@@ -884,6 +916,17 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False):
 
 
 if __name__ == "__main__":
+    # Modo "recorte de uma foto só", usado pelo próprio arquivo quando chama a si
+    # mesmo num processo separado — ver recortar_em_processo_proprio. É o que
+    # garante que a memória do recortador volte para a máquina a cada foto.
+    if "--recortar" in sys.argv:
+        i = sys.argv.index("--recortar")
+        de, para = sys.argv[i + 1], sys.argv[i + 2]
+        _, _aviso, _concordancia = recortar_fundo(de, para)
+        print("RESULTADO " + json.dumps({"aviso": _aviso, "concordancia": _concordancia},
+                                        ensure_ascii=False))
+        sys.exit(0)
+
     entrada, gerador, ident = sys.argv[1], sys.argv[2], sys.argv[3]
     resultado = preparar(entrada, gerador, ident, juntar="--juntar" in sys.argv)
     destino = None
