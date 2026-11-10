@@ -22,6 +22,14 @@
   .arquivo .rot{color:var(--fraco);font-size:14px}
   .previas{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .previas img{height:84px;border-radius:6px;border:1px solid var(--borda);background:#000}
+  /* O guia das fotos. Fica antes do campo de envio, destacado o bastante para ser
+     lido e discreto o bastante para não competir com o formulário. */
+  .guia{background:var(--cinza);border:1px solid var(--borda);border-radius:10px;
+    padding:14px 16px;margin:18px 0 6px;font-size:13px;color:#ddd}
+  .guia b{display:block;color:#fff;font-size:14px;margin-bottom:8px}
+  .guia ul{margin:0;padding-left:18px}
+  .guia li{margin:5px 0;line-height:1.45}
+  .guia .porque{margin-top:10px;color:var(--fraco);font-size:12.5px}
   .aviso{background:var(--cinza);border:1px solid var(--borda);border-left:3px solid var(--vermelho);border-radius:8px;padding:14px;margin:26px 0 0;font-size:13.5px;color:#ddd;white-space:pre-wrap}
   .confirma{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;font-size:14.5px}
   .confirma input{margin-top:3px;width:18px;height:18px;accent-color:var(--vermelho)}
@@ -59,9 +67,11 @@
     <input type="text" id="instagram" required placeholder="@suabanda" maxlength="40">
 
     <label>Valor do couvert</label>
-    <input type="text" id="couvert" inputmode="decimal" placeholder="15" maxlength="12">
-    <div class="dica">Só o valor, em reais. Deixe em branco se não houver couvert —
-      a arte sai sem essa informação.</div>
+    <!-- Sem exemplo dentro do campo: um número cinza ali é lido como valor já
+         preenchido, e o show sairia anunciando um preço que ninguém combinou. -->
+    <input type="text" id="couvert" inputmode="decimal" maxlength="12">
+    <div class="dica">Só o valor, em reais — pode escrever 20 ou 20,00. Deixando em
+      branco, a arte sai sem a linha do couvert.</div>
 
     <div class="confirma">
       <input type="checkbox" id="querColab">
@@ -81,6 +91,31 @@
              style="margin-top:8px">
       <div class="dica">O primeiro já vem com o @ da banda. Pode trocar ou acrescentar —
         por exemplo o perfil de um integrante.</div>
+    </div>
+
+    <div class="guia">
+      <b>Como escolher as fotos</b>
+      <ul>
+        <li><b>Fundo simples ajuda muito.</b> Parede lisa, estúdio ou um fundo bem
+          separado de vocês. Palco cheio de equipamento e gente atrás é o que mais
+          atrapalha.</li>
+        <li><b>Boa luz e boa resolução.</b> Evite foto escura, desfocada ou
+          pixelada — o sistema realça o contraste, e o que está ruim fica mais
+          visível, não menos.</li>
+        <li><b>Mande o arquivo original.</b> Foto reencaminhada várias vezes por
+          aplicativo de mensagem chega comprimida e perde qualidade.</li>
+        <li><b>Nada escrito por cima.</b> Marca d'água, legenda, moldura ou ícone
+          de player entram na arte junto — o sistema não sabe que aquilo não faz
+          parte de vocês.</li>
+        <li><b>Corpo inteiro no quadro.</b> Evite fotos em que a cabeça, as mãos ou
+          o instrumento já venham cortados pela borda.</li>
+        <li><b>Um integrante por foto, se for juntar a banda.</b> Marque a opção
+          abaixo só nesse caso.</li>
+      </ul>
+      <p class="porque">Quando o fundo é simples, usamos a foto inteira e ela fica
+        mais fiel. Quando o fundo atrapalha, recortamos vocês do fundo — e aí uma
+        foto em que a pessoa se confunde com o que está atrás pode ser recusada,
+        com aviso.</p>
     </div>
 
     <label>Fotos da banda <span class="op">— até 4</span></label>
