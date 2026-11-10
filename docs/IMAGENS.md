@@ -234,6 +234,43 @@ melhor que um integrante faltando.
 
 ---
 
+## 6.1. Cada foto é recortada num processo próprio
+
+Isto não é detalhe de arrumação: é o que faz a produção terminar.
+
+O motor que executa os modelos de recorte reserva memória num bloco próprio e
+**não a devolve** quando acaba. Soltar a sessão não alcança esse bloco; chamar a
+faxina da linguagem também não. Medido na oficina do GitHub, numa máquina de 16 GB
+com 14,8 GB livres ao começar:
+
+| momento | memória em uso |
+|---|---|
+| antes da 1ª foto | 564 MB |
+| depois da 1ª foto | 11.441 MB |
+| depois da 2ª foto | 14.926 MB |
+| depois da 3ª foto | 15.010 MB |
+
+Na quarta carga de modelo não havia mais memória, e o sistema operacional **matou o
+processo** — código de saída 143. Morte assim não deixa erro: o programa some no
+meio da linha. Por isso a execução caía sempre no mesmo ponto, em silêncio, e a
+programação ficava presa em "gerando artes" sem explicação.
+
+O único jeito de devolver essa memória é o processo acabar. Então cada foto é
+recortada num processo que nasce, faz o seu recorte e morre. O preço é recarregar
+o modelo a cada foto; vale, porque antes a produção não terminava a partir da
+segunda.
+
+De quebra, uma foto que derrube o recortador deixa de derrubar a programação
+inteira: morre o processo daquela foto e as outras seguem.
+
+**A lição que ficou:** uma falha sem erro não se diagnostica por hipótese. Houve
+duas tentativas de conserto baseadas em palpite — guardar menos modelos, reduzir a
+resolução — e as duas falharam, porque atacavam um sintoma parecido mas não a
+causa. O que resolveu foi escrever o consumo no registro a cada etapa. Essa medição
+continua ligada, de propósito.
+
+---
+
 ## 7. O custo
 
 Não recortar o que não precisa foi o que resolveu o tempo. Medido na mesma máquina,
