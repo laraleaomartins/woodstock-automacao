@@ -67,6 +67,11 @@ function doPost(e) {
         // O mesmo relatório do painel, pela API. Serve para conferir o arquivo sem
         // depender do navegador, e para quem quiser automatizar o envio dele.
         return json({ ok: true, resultado: painelRelatorio(corpo.chave, corpo.periodo) });
+      case 'refazer':
+        // `manter_caminho` reaproveita o mesmo tratamento, para quando o que mudou
+        // foi o sistema e não a vontade sobre a arte.
+        return json({ ok: true, resultado:
+          refazerArtes(corpo.id, corpo.peca || '', corpo.manter_caminho === true) });
       case 'cancelar_programacao':
         // Cancela a programação inteira e tira as publicações dela da fila. Existe
         // para limpar inscrição de teste sem precisar abrir o painel.

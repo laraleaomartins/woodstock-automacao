@@ -362,14 +362,18 @@ function reprovarProgramacao(programacaoId, motivo) {
  * desagradou; as seis são refeitas de todo modo, porque saem todas do mesmo
  * tratamento das fotos — não existe refazer uma sem refazer o tratamento.
  */
-function refazerArtes(programacaoId, peca) {
+function refazerArtes(programacaoId, peca, manterCaminho) {
   var prog = acharProgramacao(programacaoId);
   if (!prog) throw new Error('Programação não encontrada.');
 
   var artes = {};
   try { artes = JSON.parse(prog.Artes || '{}'); } catch (x) { artes = {}; }
   var recebidos = artes.recebidos || {};
-  var tentativa = Number(recebidos.tentativa || 1) + 1;
+  // Normalmente refazer anda um número, para tentar um tratamento diferente — o
+  // recorte é determinístico e repetir devolveria a mesma arte. Mas quando o que
+  // mudou foi o PRÓPRIO sistema, é o mesmo caminho que se quer de volta, agora com
+  // o defeito corrigido; andar o número aqui trocaria o tratamento sem motivo.
+  var tentativa = Number(recebidos.tentativa || 1) + (manterCaminho ? 0 : 1);
   recebidos.tentativa = tentativa;
   if (peca) recebidos.ultimaPecaRuim = String(peca);
 
