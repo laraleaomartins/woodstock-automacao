@@ -91,13 +91,16 @@ jobs:
       - name: As ferramentas ainda funcionam e as peças ainda saem?
         run: python tests/conferir_oficina_viva.py
 
-      # As três baterias que já existiam. Rodam aqui porque rodar teste só quando
-      # alguém lembra de rodar é o mesmo que não ter teste.
+      # As baterias que já existiam e que CONSEGUEM rodar aqui. Rodam todo dia porque
+      # teste que só roda quando alguém lembra é o mesmo que não ter teste.
+      #
+      # A bateria das imagens (tests/testar_imagens.py) fica de fora, e não por
+      # esquecimento: ela compara resultados usando fotos de banda de verdade, que são
+      # mantidas fora do repositório justamente por ser público. Ela só roda em
+      # computador que tenha as fotos — ou seja, no da dona do bar, à mão. Fica
+      # registrado aqui para ninguém perder tempo procurando por que ela sumiu.
       - name: Bateria do cérebro
         run: node tests/testar_cerebro.mjs
-
-      - name: Bateria das imagens
-        run: python tests/testar_imagens.py
 
       - name: Bateria da oficina
         run: node tests/testar_oficina.mjs

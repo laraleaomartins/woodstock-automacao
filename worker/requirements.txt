@@ -6,32 +6,32 @@
 # se inscreve, o defeito nascia no pior momento possível: com uma banda real
 # esperando a arte, sem aviso nenhum antes.
 #
-# POR QUE AINDA NÃO ESTÁ NO NÚMERO EXATO, e isto é de propósito:
+# OS NÚMEROS ABAIXO FORAM MEDIDOS, NÃO SUPOSTOS — e isso não é detalhe.
 #
-# Travar no número exato é o objetivo, mas travar no número ERRADO troca a versão que
-# está produzindo as artes hoje — ou seja, muda o resultado do recorte sem ninguém
-# pedir. E não há como saber de fora qual versão a oficina instalou, porque a
-# instalação roda em silêncio.
+# A primeira versão deste arquivo travava em rembg 2.0.86, que é o que está instalado
+# no computador de quem escreveu. A oficina, medida na execução 43021074397, usa
+# 2.0.87. Travar no número suposto teria REBAIXADO o recortador que produz as artes
+# hoje, trocando o motor do recorte sem ninguém pedir — exatamente o contrário do que
+# este arquivo existe para evitar.
 #
-# Então a ordem é: primeiro medir, depois travar. Este arquivo, por enquanto, só põe
-# um teto na versão MAIOR de cada biblioteca — a que muda as regras do jogo e quebra
-# chamada. Dentro dela, continua pegando a mais nova, exatamente como já fazia hoje.
-# Nada muda no que está instalado agora.
+# Então a ordem foi: a conferência diária rodou uma vez, imprimiu o que a oficina
+# instala de verdade, e só então os números entraram aqui.
 #
-# Quem mede é a conferência diária (.github/workflows/conferencia.yml): ela imprime a
-# lista do que foi instalado de verdade, todo dia. Com o número em mão, estes "<" dão
-# lugar a "==" e o travamento fica completo.
+# PARA ATUALIZAR UMA DESTAS VERSÕES, um dia: mude o número, deixe a conferência diária
+# rodar, e compare a arte que sai com a de antes. Quem decide se a arte continua boa é
+# olho humano, no painel — nenhum teste aqui sabe responder isso.
 #
-# O que já funciona desde agora, mesmo sem o número exato: a conferência roda todo dia
-# de manhã e o GitHub manda e-mail quando ela falha. A quebra passa a aparecer num dia
-# qualquer, e não no dia da banda — que era o problema principal.
+# O onnxruntime entra escrito mesmo vindo de carona com o rembg: é ele quem executa o
+# modelo de recorte, e uma troca de versão dele muda o resultado tanto quanto uma
+# troca do próprio modelo.
 #
-# Sobre o scipy: ele entra escrito, e não de carona. A preparação das imagens usa o
+# O scipy também entra escrito, e não de carona: a preparação das imagens usa o
 # scipy.ndimage para esfumar borda e para medir buraco no meio de uma logo. Ele vinha
 # junto como dependência do rembg, o que é uma corda que alguém pode cortar numa
 # versão nova sem avisar.
 
-rembg[cpu]<3
-pillow<14
-numpy<3
-scipy<2
+rembg[cpu]==2.0.87
+onnxruntime==1.31.1
+pillow==13.0.0
+numpy==2.4.6
+scipy==1.17.1
