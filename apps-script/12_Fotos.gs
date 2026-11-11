@@ -199,6 +199,12 @@ function painelSubstituirFoto(chave, id, indice, arquivo) {
     throw new Error('A imagem tem ' + Math.round(bytes.length / 1048576) +
       ' MB e o limite é ' + Math.round(BYTES_MAXIMO_EDITADA / 1048576) + ' MB.');
   }
+  // A mesma conferência da inscrição, pela mesma função: aqui a porta é sua, mas o
+  // arquivo vem de fora do sistema do mesmo jeito, e um HEIC trocado à mão quebraria
+  // a produção igual.
+  if (!formatoDaImagem(bytes)) {
+    throw new Error(recusaDeImagem(String(arquivo.nome || 'enviado'), bytes));
+  }
 
   var ext = tipo.indexOf('png') >= 0 ? '.png' : '.jpg';
   var nome = 'foto' + (i + 1) + '_editada_' + fmt(new Date(), 'yyyyMMdd_HHmmss') + ext;

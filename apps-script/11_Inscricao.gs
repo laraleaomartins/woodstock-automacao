@@ -122,15 +122,30 @@ function perfisDeColaboracao(lista) {
 }
 
 function blobDeEnvio(arquivo, nomePadrao) {
+  var nome = String(arquivo.nome || nomePadrao);
   var tipo = String(arquivo.tipo || '');
   if (tipo.indexOf('image/') !== 0) {
-    throw new Error('Um dos arquivos não é imagem: ' + (arquivo.nome || nomePadrao));
+    throw new Error('Um dos arquivos não é imagem: ' + nome);
   }
   var bytes = Utilities.base64Decode(arquivo.conteudo);
-  if (bytes.length > 15 * 1024 * 1024) {
-    throw new Error('A imagem ' + (arquivo.nome || nomePadrao) + ' é grande demais.');
+  if (!bytes || !bytes.length) {
+    throw new Error('O arquivo ' + nome + ' chegou vazio.');
   }
-  return Utilities.newBlob(bytes, tipo, String(arquivo.nome || nomePadrao).slice(0, 80));
+  if (bytes.length > 15 * 1024 * 1024) {
+    throw new Error('A imagem ' + nome + ' é grande demais.');
+  }
+  // O tipo acima é o que quem envia DIZ que mandou, e a inscrição é pública. Quem
+  // responde de verdade são os primeiros bytes do arquivo, que quem envia não
+  // escolhe. Sem isto, bastava chamar qualquer arquivo de "image/png" para ele ser
+  // gravado no Drive e depois baixado por quem opera o painel.
+  //
+  // O HEIC do iPhone é recusado AQUI, e não por descuido: a preparação das imagens
+  // não abre esse formato. Antes ele era aceito e a arte falhava minutos depois, com
+  // um recado que a banda não entende e que chega quando ela já foi embora.
+  if (!formatoDaImagem(bytes)) {
+    throw new Error(recusaDeImagem(nome, bytes));
+  }
+  return Utilities.newBlob(bytes, tipo, nome.slice(0, 80));
 }
 
 /** Freio simples contra envio em massa. */

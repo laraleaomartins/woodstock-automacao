@@ -37,6 +37,78 @@ function registrar(nivel, programacao, evento, detalhe) {
 }
 
 /** Nunca deixa token vazar para log, planilha ou e-mail. */
+/**
+ * Que imagem é esta, de verdade?
+ *
+ * Olha a marca impressa nos primeiros bytes do arquivo, e não o que o arquivo DIZ
+ * ser. O que ele diz é escolhido por quem envia: a inscrição é pública, e bastava
+ * chamar qualquer arquivo de "image/png" para ele ser gravado no Drive e, depois,
+ * baixado pela pessoa que opera o painel.
+ *
+ * A lista é a dos formatos que a preparação das imagens CONSEGUE ABRIR. Ela não é
+ * mais curta do que isso de propósito: a página de inscrição só converte a foto
+ * quando precisa encolher, então foto que já cabe no limite sobe no formato em que
+ * saiu do celular. Uma lista só com PNG e JPEG recusaria envio que hoje funciona.
+ *
+ * Devolve o nome do formato, ou null quando não reconhece nada.
+ */
+function formatoDaImagem(bytes) {
+  if (!bytes || bytes.length < 12) return null;
+  // Os bytes chegam com sinal; o "& 255" devolve o número de 0 a 255.
+  var b = [];
+  for (var i = 0; i < 12; i++) b.push(bytes[i] & 255);
+  var texto = function (de, ate) {
+    var t = '';
+    for (var j = de; j < ate; j++) t += String.fromCharCode(b[j]);
+    return t;
+  };
+
+  if (b[0] === 0x89 && texto(1, 4) === 'PNG') return 'PNG';
+  if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'JPEG';
+  if (texto(0, 4) === 'GIF8') return 'GIF';
+  if (texto(0, 2) === 'BM') return 'BMP';
+  if ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2A && b[3] === 0x00) ||
+      (b[0] === 0x4D && b[1] === 0x4D && b[2] === 0x00 && b[3] === 0x2A)) return 'TIFF';
+  if (texto(0, 4) === 'RIFF' && texto(8, 12) === 'WEBP') return 'WEBP';
+  // AVIF e HEIC são parentes e começam igual: o que os distingue é a marca que vem
+  // depois de "ftyp". O AVIF a preparação abre; o HEIC não.
+  if (texto(4, 8) === 'ftyp') {
+    var marca = texto(8, 12).toLowerCase();
+    if (marca === 'avif' || marca === 'avis') return 'AVIF';
+    return null;
+  }
+  return null;
+}
+
+/**
+ * É foto de iPhone no formato que a preparação não abre?
+ *
+ * Existe só para o recado ser útil. Dizer "não reconheci este arquivo" a quem mandou
+ * uma foto do próprio celular não ajuda ninguém: a pessoa olha a foto, vê uma foto, e
+ * não entende. Sabendo que é HEIC dá para dizer o que fazer.
+ */
+function ehHeic(bytes) {
+  if (!bytes || bytes.length < 12) return false;
+  var t = '';
+  for (var i = 4; i < 12; i++) t += String.fromCharCode(bytes[i] & 255);
+  if (t.slice(0, 4) !== 'ftyp') return false;
+  var marca = t.slice(4, 8).toLowerCase();
+  return marca === 'heic' || marca === 'heix' || marca === 'hevc' ||
+         marca === 'heim' || marca === 'heis' || marca === 'mif1' || marca === 'msf1';
+}
+
+/** O recado para quem mandou um arquivo que não dá para usar. */
+function recusaDeImagem(nome, bytes) {
+  if (ehHeic(bytes)) {
+    return 'A foto ' + nome + ' está no formato HEIC, do iPhone, que o sistema não ' +
+      'consegue abrir. No iPhone: Ajustes › Câmera › Formatos › Mais Compatível, e ' +
+      'tire a foto de novo. Ou mande uma captura de tela da foto, que já sai em ' +
+      'formato comum.';
+  }
+  return 'O arquivo ' + nome + ' não é uma imagem que o sistema consiga abrir. ' +
+    'Mande em JPG ou PNG.';
+}
+
 function limparSegredos(texto) {
   var props = PropertiesService.getScriptProperties().getProperties();
   var saida = texto;

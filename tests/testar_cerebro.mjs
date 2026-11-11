@@ -543,8 +543,23 @@ teste('Story vai sem legenda e com o tipo STORIES', (ctx, estado) => {
 
 // ---------------- página de inscrição própria (sem conta Google) -------------
 
+// Os bytes do comeco sao os de uma imagem DE VERDADE. Antes era texto qualquer, e
+// isso passava porque o sistema so olhava o tipo declarado. Agora que ele olha o
+// arquivo, um teste com texto dentro estaria exercitando um caminho que a vida real
+// nao percorre.
+const CABECALHO = {
+  'image/png':  [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+  'image/jpeg': [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46],
+  'image/webp': [0x52, 0x49, 0x46, 0x46, 0x20, 0, 0, 0, 0x57, 0x45, 0x42, 0x50],
+  'image/heic': [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]
+};
+
+const bytesDe = (tipo, enchimento = 'conteudo') =>
+  Buffer.concat([Buffer.from(CABECALHO[tipo] || CABECALHO['image/jpeg']),
+                 Buffer.from(enchimento)]).toString('base64');
+
 const imagemFalsa = (nome, tipo = 'image/jpeg') => ({
-  nome, tipo, conteudo: Buffer.from('conteudo-de-' + nome).toString('base64')
+  nome, tipo, conteudo: bytesDe(tipo, 'conteudo-de-' + nome)
 });
 
 const inscricaoFalsa = (extra = {}) => ({
@@ -590,8 +605,7 @@ teste('Produção travada volta para a fila, e o segundo tranco avisa por e-mail
 });
 
 const fotoEditada = (nome = 'editada.png') => ({
-  nome, tipo: 'image/png',
-  conteudo: Buffer.from('imagem-editada-' + nome).toString('base64')
+  nome, tipo: 'image/png', conteudo: bytesDe('image/png', 'imagem-editada-' + nome)
 });
 
 teste('Cada foto tem seu próprio estado, e o erro aponta a culpada', (ctx, estado) => {
@@ -892,6 +906,61 @@ teste('A página recusa o que está errado, sem criar nada', (ctx) => {
   conferir(robo.ok === false, 'o campo-isca pegou o robô');
 
   conferir(ctx.linhas('PROGRAMACOES').length === 0, 'nenhuma delas criou programação');
+});
+
+teste('O arquivo é julgado pelo que ele é, não pelo que diz ser', (ctx) => {
+  // O defeito que isto guarda: a inscrição é pública e conferia só o tipo DECLARADO,
+  // que é escolhido por quem envia. Bastava chamar qualquer arquivo de "image/png"
+  // para ele ser gravado no Drive e depois baixado por quem opera o painel.
+  const disfarcado = ctx.receberInscricao(inscricaoFalsa({
+    fotos: [{ nome: 'parece_foto.png', tipo: 'image/png',
+              conteudo: Buffer.from('MZ isto aqui e um programa').toString('base64') }]
+  }));
+  conferir(disfarcado.ok === false,
+    'arquivo que não é imagem foi recusado mesmo se dizendo PNG');
+  conferir(/não é uma imagem/i.test(disfarcado.problemas.join(' ')),
+    'e o recado diz o que houve: "' + disfarcado.problemas.join('; ') + '"');
+
+  // Foto de iPhone. Antes ela era ACEITA e a arte falhava minutos depois, porque a
+  // preparação das imagens não abre HEIC. Agora a banda ouve na hora, e ouve o que
+  // fazer — o recado precisa ensinar, senão quem olha a foto e vê uma foto não
+  // entende por que foi recusada.
+  const iphone = ctx.receberInscricao(inscricaoFalsa({
+    fotos: [{ nome: 'IMG_4312.HEIC', tipo: 'image/heic', conteudo: bytesDe('image/heic') }]
+  }));
+  conferir(iphone.ok === false, 'foto HEIC de iPhone foi recusada na inscrição');
+  const recado = iphone.problemas.join(' ');
+  conferir(/HEIC/.test(recado) && /Mais Compat/i.test(recado),
+    'e o recado ensina o caminho no iPhone: "' + recado + '"');
+
+  // A lista não é só PNG e JPEG de propósito: a página de inscrição só converte a
+  // foto quando precisa encolher, então foto que já cabe sobe no formato original.
+  // Recusar WebP aqui quebraria envio que hoje funciona.
+  const webp = ctx.receberInscricao(inscricaoFalsa({
+    fotos: [{ nome: 'foto.webp', tipo: 'image/webp', conteudo: bytesDe('image/webp') }]
+  }));
+  conferir(webp.ok === true,
+    'formato que a preparação abre continua passando (WebP)');
+
+  conferir(ctx.linhas('PROGRAMACOES').length === 1,
+    'só a inscrição boa virou programação');
+});
+
+teste('Trocar a foto pelo painel também julga o arquivo', (ctx, estado) => {
+  const id = ctx.receberInscricao(inscricaoFalsa()).id;
+  const chave = estado.props.API_TOKEN;
+
+  let erro = null;
+  try {
+    ctx.painelSubstituirFoto(chave, id, 0,
+      { nome: 'IMG_9001.HEIC', tipo: 'image/heic', conteudo: bytesDe('image/heic') });
+  } catch (e) { erro = e.message; }
+  conferir(erro !== null && /HEIC/.test(erro),
+    'HEIC trocado à mão foi recusado, em vez de quebrar a produção depois');
+
+  const antes = ctx.painelFotos(chave, id);
+  conferir(antes[0].usando === 'original',
+    'e a foto da banda continua sendo a que vale');
 });
 
 teste('Reenvio da mesma inscrição não duplica', (ctx) => {
