@@ -1,13 +1,31 @@
 name: Produzir artes
 
-# Roda sozinho a cada 15 minutos, nos servidores do GitHub. Não depende de nenhum
-# computador ligado. O Apps Script também pode chamar na hora, pelo evento
-# "produzir-artes", quando uma banda acaba de se inscrever.
+# Três caminhos levam a produção a acontecer, e a redundância é de propósito:
+#
+#  1. este agendamento, de 10 em 10 minutos, que é a GARANTIA — se todo o resto
+#     falhar, a banda recebe a arte no próximo giro;
+#  2. o empurrão do Apps Script, que é a PRESSA — ele chama este fluxo assim que uma
+#     banda se inscreve, para a arte não esperar o próximo giro. Quando esse empurrão
+#     falha, não é grave: o giro de 10 minutos pega;
+#  3. a rotina de destravamento no Apps Script, que devolve à fila a programação
+#     parada há mais de 45 minutos, e avisa por e-mail do segundo tranco em diante.
+#
+# Os três cobrem falhas DIFERENTES, e por isso nenhum deles sai. O caso que só o
+# empurrão cobre: o GitHub desliga agendamento em repositório sem atividade por 60
+# dias, então um período sem shows mataria o item 1 em silêncio.
+#
+# Nada depende de computador ligado.
 on:
   schedule:
     # Horários deslocados de propósito: o GitHub atrasa ou engole execuções
     # agendadas em minutos redondos, quando a fila dele está cheia.
     - cron: '3,13,23,33,43,53 * * * *'
+  # O Apps Script empurra por aqui: workflow_dispatch, abaixo.
+  #
+  # O repository_dispatch com o nome "produzir-artes" fica declarado e NINGUÉM o
+  # dispara hoje — está escrito aqui para quem ler saber disso, e não para ser
+  # removido. Um gatilho a mais não custa nada, e tirar um caminho de entrada de um
+  # sistema que funciona é a troca errada: o risco é todo de um lado.
   repository_dispatch:
     types: [produzir-artes]
   workflow_dispatch:
@@ -99,11 +117,10 @@ jobs:
         if: steps.fila.outputs.tem == 'sim'
         run: |
           python -m pip install --quiet --upgrade pip
-          # scipy entra escrito, e não de carona: a preparação das imagens usa o
-          # scipy.ndimage para esfumar borda e para medir buraco no meio de uma
-          # logo. Ele vinha junto como dependência do rembg, o que é uma corda que
-          # alguém pode cortar numa versão nova sem avisar.
-          python -m pip install --quiet "rembg[cpu]" pillow numpy scipy
+          # As versões estão escritas em worker/requirements.txt, e o porquê de cada
+          # uma está lá. Em resumo: sem versão escrita, uma atualização de biblioteca
+          # quebrava a produção na hora em que uma banda estava esperando a arte.
+          python -m pip install --quiet -r worker/requirements.txt
           npm --prefix gerador install --no-audit --no-fund
           npm --prefix gerador exec -- playwright install --with-deps chromium
 

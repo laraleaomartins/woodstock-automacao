@@ -1,0 +1,37 @@
+# As bibliotecas que a oficina usa.
+#
+# Por que isto existe: antes a instalação era "pip install rembg pillow numpy scipy",
+# sem versão nenhuma. Qualquer uma delas lançando uma versão nova com um nome de
+# parâmetro trocado quebrava a produção — e, como a oficina só roda quando uma banda
+# se inscreve, o defeito nascia no pior momento possível: com uma banda real
+# esperando a arte, sem aviso nenhum antes.
+#
+# POR QUE AINDA NÃO ESTÁ NO NÚMERO EXATO, e isto é de propósito:
+#
+# Travar no número exato é o objetivo, mas travar no número ERRADO troca a versão que
+# está produzindo as artes hoje — ou seja, muda o resultado do recorte sem ninguém
+# pedir. E não há como saber de fora qual versão a oficina instalou, porque a
+# instalação roda em silêncio.
+#
+# Então a ordem é: primeiro medir, depois travar. Este arquivo, por enquanto, só põe
+# um teto na versão MAIOR de cada biblioteca — a que muda as regras do jogo e quebra
+# chamada. Dentro dela, continua pegando a mais nova, exatamente como já fazia hoje.
+# Nada muda no que está instalado agora.
+#
+# Quem mede é a conferência diária (.github/workflows/conferencia.yml): ela imprime a
+# lista do que foi instalado de verdade, todo dia. Com o número em mão, estes "<" dão
+# lugar a "==" e o travamento fica completo.
+#
+# O que já funciona desde agora, mesmo sem o número exato: a conferência roda todo dia
+# de manhã e o GitHub manda e-mail quando ela falha. A quebra passa a aparecer num dia
+# qualquer, e não no dia da banda — que era o problema principal.
+#
+# Sobre o scipy: ele entra escrito, e não de carona. A preparação das imagens usa o
+# scipy.ndimage para esfumar borda e para medir buraco no meio de uma logo. Ele vinha
+# junto como dependência do rembg, o que é uma corda que alguém pode cortar numa
+# versão nova sem avisar.
+
+rembg[cpu]<3
+pillow<14
+numpy<3
+scipy<2

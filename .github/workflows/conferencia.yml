@@ -1,0 +1,103 @@
+name: Conferência diária
+
+# Pergunta uma coisa só, todo dia de manhã: a oficina ainda consegue produzir uma arte?
+#
+# O problema que isto resolve. As bibliotecas de imagem eram instaladas sem versão
+# escrita, e a oficina só roda quando uma banda se inscreve. Juntando as duas coisas,
+# uma atualização de biblioteca quebrava a produção e o primeiro a descobrir era quem
+# estava esperando a arte. Agora a quebra aparece num dia qualquer, de manhã, e o
+# GitHub manda e-mail sozinho quando um fluxo agendado falha.
+#
+# O que esta conferência NÃO FAZ, de propósito:
+#  - não fala com o Apps Script, não usa chave nenhuma e não recebe segredo nenhum;
+#  - não mexe na fila, não toca em programação de banda, não publica nada;
+#  - não escreve no repositório (nada de commit, nada em docs/);
+#  - não julga se a arte ficou bonita — isso é olho humano, no painel.
+#
+# Ela desenha as imagens de teste na hora, com formas geométricas, e as joga fora no
+# fim. Nenhum material de banda entra aqui: o repositório é público.
+
+on:
+  schedule:
+    # 11:20 UTC = 08:20 em Brasília. Minuto deslocado porque o GitHub atrasa ou engole
+    # execuções agendadas em minutos redondos, quando a fila dele está cheia.
+    - cron: '20 11 * * *'
+  workflow_dispatch:
+
+# Nunca junto com a produção de artes de verdade: uma conferência não pode disputar a
+# máquina com uma banda que está esperando.
+concurrency:
+  group: artes
+  cancel-in-progress: false
+
+# Só leitura. Esta conferência não tem por que poder escrever no repositório.
+permissions:
+  contents: read
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # As mesmas pastas e a mesma chave de cache da produção, para a conferência
+      # medir o que a produção vai encontrar — e não outra coisa.
+      - name: Garantir as pastas dos modelos
+        run: mkdir -p ~/.u2net ~/.rembg
+
+      - name: Cache dos modelos de recorte
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.u2net
+            ~/.rembg
+          key: rembg-birefnet-u2net-isnet-vitmatte-v2
+          restore-keys: |
+            rembg-birefnet-u2net-isnet-
+
+      - name: Cache do navegador do gerador
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('gerador/package.json') }}
+
+      - name: Instalar as mesmas dependências da produção
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet -r worker/requirements.txt
+          npm --prefix gerador install --no-audit --no-fund
+          npm --prefix gerador exec -- playwright install --with-deps chromium
+
+      # O registro que permite travar as versões no número exato depois, e a primeira
+      # coisa a olhar quando a conferência falhar: comparando com a execução de ontem,
+      # a biblioteca que mudou aparece sozinha.
+      - name: Registrar as versões instaladas
+        run: |
+          echo "## Versões instaladas hoje" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python -m pip freeze | grep -iE 'rembg|pillow|numpy|scipy|onnxruntime|opencv' \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: As ferramentas ainda funcionam e as peças ainda saem?
+        run: python tests/conferir_oficina_viva.py
+
+      # As três baterias que já existiam. Rodam aqui porque rodar teste só quando
+      # alguém lembra de rodar é o mesmo que não ter teste.
+      - name: Bateria do cérebro
+        run: node tests/testar_cerebro.mjs
+
+      - name: Bateria das imagens
+        run: python tests/testar_imagens.py
+
+      - name: Bateria da oficina
+        run: node tests/testar_oficina.mjs
