@@ -136,6 +136,61 @@
     .foto{width:calc(50% - 5px)}
     .foto img{height:150px}
   }
+  /* ---------- a ficha da banda ----------
+     Cada dado é um bloco, e o bloco inteiro é o botão de copiar. Antes era uma
+     tabela com um botão "copiar" por linha: nove botões cinzentos empilhados, com
+     o mesmo peso visual do dado que importa — parecia a planilha que o painel
+     deveria poupar de olhar. */
+  .fichaBanda{background:#131313}
+  .grupoDados{padding:10px 14px 2px;border-top:1px solid rgba(255,255,255,.055)}
+  .grupoDados:first-of-type{border-top:0}
+  .rotuloGrupo{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;
+    color:#6f6f6f;margin-bottom:7px}
+  .blocos{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:8px;padding-bottom:10px}
+
+  .dado{position:relative;display:flex;flex-direction:column;gap:3px;
+    text-align:left;width:100%;padding:9px 11px;border-radius:9px;
+    border:1px solid var(--borda);background:#191919;color:var(--texto);
+    font:inherit;cursor:default}
+  button.dado{cursor:pointer;transition:border-color .12s,background .12s}
+  button.dado:hover{background:#202020;border-color:#454545}
+  button.dado:active{background:#262626}
+  button.dado:focus-visible{outline:2px solid var(--vermelho);outline-offset:2px}
+
+  .dado .rot{font-size:10px;letter-spacing:.9px;text-transform:uppercase;
+    color:#7d7d7d;line-height:1}
+  .dado .val{font-size:14.5px;line-height:1.3;overflow-wrap:anywhere}
+  .dado.semValor .val{color:#6f6f6f;font-style:italic;font-size:13px}
+
+  /* A pista de "copiar" só aparece quando o ponteiro chega perto. Fixa, ela seria
+     a mesma fileira de botões de antes, só que menor. */
+  .dado .pista{position:absolute;right:9px;top:8px;font-size:9.5px;
+    letter-spacing:.8px;text-transform:uppercase;color:#6f6f6f;opacity:0;
+    transition:opacity .12s}
+  button.dado:hover .pista,button.dado:focus-visible .pista{opacity:1}
+  button.dado.copiado{border-color:#1a6b33;background:#102a19}
+  button.dado.copiado .pista{opacity:1;color:#7ee29a}
+
+  /* ---------- as fotos ----------
+     Uma ação por foto: baixar. Eram quatro, e três serviam ao gerador de arte. */
+  .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+    gap:12px;padding:12px}
+  .foto{width:auto;margin:0;border:1px solid var(--borda);border-radius:10px;
+    overflow:hidden;background:#0f0f0f;display:flex;flex-direction:column}
+  .foto img{width:100%;height:150px;object-fit:cover;display:block;background:#161616}
+  .foto figcaption{display:flex;align-items:center;gap:8px;padding:8px 9px}
+  .foto .nome{flex:1;min-width:0;font-size:11px;color:var(--fraco);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .foto figcaption .b{flex:0 0 auto}
+
+  @media (max-width: 640px){
+    .blocos{grid-template-columns:1fr 1fr}
+    .fotos{grid-template-columns:1fr 1fr;gap:8px;padding:8px}
+    .foto img{height:120px}
+    .foto figcaption{flex-direction:column;align-items:stretch;gap:6px}
+    .foto figcaption .b{width:100%}
+  }
   /* O cartão de dados deixou de ser uma gaveta fechada: num painel de coleta, os
      dados SÃO o conteúdo, e esconder o conteúdo atrás de um clique é trabalho a
      mais em cada banda. */
@@ -190,6 +245,13 @@
   button.b:hover{border-color:var(--vermelho)}
   button.b.forte{background:var(--vermelho);border-color:var(--vermelho);color:#fff;font-weight:600}
   button.b:disabled{opacity:.4;cursor:not-allowed}
+  /* O botão só valia para <button>, e o link do Drive — que também usa a classe —
+     ficava sem estilo nenhum: texto de link escuro sobre fundo escuro, quase
+     invisível. Link que é botão precisa parecer botão. */
+  a.b{display:inline-flex;align-items:center;border:1px solid var(--borda);
+    background:#000;color:var(--texto);padding:8px 12px;border-radius:7px;
+    font-size:13px;text-decoration:none}
+  a.b:hover{border-color:var(--vermelho)}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--borda);vertical-align:top}
   th{color:var(--fraco);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
@@ -467,39 +529,35 @@ function desenharProgramacoes(){
     return;
   }
   alvo.innerHTML = lista.map(function(p){
-    // A seção das FOTOS ENVIADAS vem antes das artes de propósito: quando uma arte
-    // sai ruim, é aqui que se descobre e se conserta qual foto é a culpada.
-    var comProblema = (p.fotos || []).filter(function(f){
-      return f.estado === 'erro' || f.estado === 'duvidoso';
-    }).length;
+    // A SEÇÃO DAS FOTOS.
+    //
+    // Cada foto tem UMA ação: baixar. Tinha quatro — original, editada, substituir e
+    // desfazer —, e três delas existiam para alimentar o gerador de arte: substituir
+    // mandava uma versão tratada à mão para a produção usar, e desfazer voltava
+    // atrás. Sem gerador, não sobrou o que alimentar. O que este painel faz com uma
+    // foto é entregá-la a quem vai fazer a arte.
+    //
+    // O selo do tratamento também saiu pelo mesmo motivo: "processada" e "resultado
+    // duvidoso" eram o laudo do recorte automático, e laudo de um trabalho que não
+    // acontece mais só confunde quem lê.
     var fotos = (p.fotos || []).length ?
-      '<div class="secao"><div class="tituloSecao">Fotos enviadas pela banda' +
+      '<div class="secao"><div class="tituloSecao">Fotos enviadas' +
         '<span class="conta">' + p.fotos.length +
-        (comProblema ? ' · ' + comProblema + ' a conferir' : '') + '</span></div>' +
+        (p.fotos.length === 1 ? ' foto' : ' fotos') + '</span></div>' +
       '<div class="fotos">' +
       p.fotos.map(function(f){
-        var rotulo = {ok:'processada', erro:'precisa de conserto',
-                      duvidoso:'resultado duvidoso', editada:'editada por você',
-                      sem_informacao:'ainda não processada'}[f.estado] || f.estado;
-        // A imagem NÃO vem num endereço do Drive: aquele endereço só responde a
+        // A imagem não vem de um endereço do Drive: aquele endereço só responde a
         // quem tem a sessão do Google, e o navegador não a manda para fora da
-        // moldura isolada onde o painel roda — o que deixava o quadrado de imagem
-        // quebrada no lugar da foto. Quem busca é o próprio sistema, logo depois
-        // desta tela aparecer. Ver painelPreviaFoto.
-        var qual = f.editada ? 'editada' : 'original';
-        return '<div class="foto">' +
-          '<img data-prev="'+p.id+'|'+f.indice+'|'+qual+'" alt="'+esc(f.nome)+'">' +
-          '<div class="corpo">' +
-          '<span class="estado e-'+esc(f.estado)+'">'+esc(rotulo)+'</span>' +
-          '<span class="nome">'+esc(f.nome)+'</span>' +
-          (f.motivo ? '<span class="motivo">'+esc(f.motivo)+'</span>' : '') +
-          (f.editada ? '<span class="usando">usando a editada de '+esc(f.editada.quando)+'</span>' : '') +
-          '<div class="acoesFoto">' +
-          '<button class="b mini" onclick="baixarFoto(\''+p.id+'\','+f.indice+',\'original\')">original</button>' +
-          (f.editada ? '<button class="b mini" onclick="baixarFoto(\''+p.id+'\','+f.indice+',\'editada\')">editada</button>' : '') +
-          '<button class="b mini" onclick="trocarFoto(\''+p.id+'\','+f.indice+')">substituir</button>' +
-          (f.editada ? '<button class="b mini" onclick="desfazerFoto(\''+p.id+'\','+f.indice+')">desfazer</button>' : '') +
-          '</div></div></div>';
+        // moldura isolada onde o painel roda — era o quadrado de imagem quebrada.
+        // Quem busca é o próprio sistema. Ver painelPreviasDaProgramacao.
+        return '<figure class="foto">' +
+          '<img data-prev="' + p.id + '|' + f.indice + '|original" alt="' +
+            esc(f.nome) + '">' +
+          '<figcaption>' +
+            '<span class="nome" title="' + esc(f.nome) + '">' + esc(f.nome) + '</span>' +
+            '<button class="b mini" onclick="baixarFoto(this,' + aspas(p.id) + ',' +
+              f.indice + ')">Baixar</button>' +
+          '</figcaption></figure>';
       }).join('') + '</div></div>' : '';
 
     // O CARTÃO DE UMA INSCRIÇÃO.
@@ -511,26 +569,44 @@ function desenharProgramacoes(){
     //
     // O que sobrou é o que um painel de coleta precisa ter: quem é a banda, o que
     // ela preencheu, as fotos que mandou, e como levar tudo isso embora.
-    var dados = dadosDaBanda(p);
+    // A FICHA DA BANDA.
+    //
+    // Era uma tabela de rótulo à esquerda, valor no meio e um botão "copiar" à
+    // direita, repetido nove vezes — nove botões cinzentos empilhados, com o mesmo
+    // peso visual do dado que importa. Parecia a planilha, e era exatamente o que o
+    // painel deveria poupar de olhar.
+    //
+    // Agora cada dado é um BLOCO, e o bloco inteiro é o botão de copiar. Some a
+    // fileira de botões, o alvo do clique fica grande, e o valor pode ser escrito no
+    // tamanho de leitura em vez de espremido entre um rótulo e um botão.
+    //
+    // Os blocos vêm agrupados por assunto, porque é assim que se procura: quando é o
+    // show, como falar com a banda, o que ela cobra, e o que ela mandou. Numa fileira
+    // única de nove, achar o telefone é varrer tudo.
+    var grupos = gruposDaBanda(p);
 
     var ficha =
-      '<div class="secao">' +
-      '<div class="tituloSecao">Dados da banda' +
-        '<button class="b mini" onclick="copiarFicha(this,' + aspas(p.id) + ')">' +
-        'copiar tudo</button></div>' +
-      '<div class="ficha">' +
-      dados.map(function(d){
-        return '<div class="campo' + (d.vazio ? ' semValor' : '') + '">' +
-          '<span class="rot">' + esc(d.rotulo) + '</span>' +
-          '<span class="val">' + esc(d.valor) + '</span>' +
-          (d.copiavel
-            ? '<button class="b mini copia" title="copiar ' + esc(d.rotulo.toLowerCase()) +
-              '" onclick="copiarCampo(this,' + aspas(p.id) + ',' + aspas(d.rotulo) + ')">' +
-              'copiar</button>'
-            : '') +
-          '</div>';
-      }).join('') +
-      '</div></div>';
+      '<div class="secao fichaBanda">' +
+        '<div class="tituloSecao">Dados da banda' +
+          '<button class="b mini" onclick="copiarFicha(this,' + aspas(p.id) + ')">' +
+          'Copiar tudo</button></div>' +
+        grupos.map(function(g){
+          return '<div class="grupoDados">' +
+            '<div class="rotuloGrupo">' + esc(g.titulo) + '</div>' +
+            '<div class="blocos">' + g.itens.map(function(d){
+              var corpo =
+                '<span class="rot">' + esc(d.rotulo) + '</span>' +
+                '<span class="val">' + esc(d.valor) + '</span>';
+              // Bloco sem resposta não é botão: não há o que copiar, e um alvo de
+              // clique que não faz nada é pior que um pedaço de texto parado.
+              return d.copiavel
+                ? '<button class="dado" title="clique para copiar" ' +
+                  'onclick="copiarCampo(this,' + aspas(p.id) + ',' + aspas(d.rotulo) +
+                  ')">' + corpo + '<span class="pista">copiar</span></button>'
+                : '<div class="dado' + (d.vazio ? ' semValor' : '') + '">' + corpo + '</div>';
+            }).join('') + '</div></div>';
+        }).join('') +
+      '</div>';
 
     var acoesFinais = [];
     if ((p.fotos || []).length){
@@ -610,6 +686,23 @@ function dadosDaBanda(p){
   ];
 }
 
+// Os dados agrupados por assunto, que é como se procura por eles: quando é o show,
+// como falar com a banda, o que ela cobra, e o que ela mandou.
+function gruposDaBanda(p){
+  var todos = dadosDaBanda(p);
+  var por = {};
+  todos.forEach(function(d){ por[d.rotulo] = d; });
+  var pegar = function(nomes){
+    return nomes.map(function(n){ return por[n]; }).filter(Boolean);
+  };
+  return [
+    { titulo: 'O show',   itens: pegar(['Data do show', 'Hora do show']) },
+    { titulo: 'Contato',  itens: pegar(['Banda', 'Telefone', 'Instagram']) },
+    { titulo: 'Entrada',  itens: pegar(['Couvert', 'Coautor no post']) },
+    { titulo: 'Recebido', itens: pegar(['Fotos', 'Inscrita em']) }
+  ].filter(function(g){ return g.itens.length; });
+}
+
 // O texto da ficha inteira, pronto para colar numa conversa.
 function fichaEmTexto(p){
   return dadosDaBanda(p)
@@ -625,11 +718,28 @@ function copiarFicha(botao, id){
 // Copiar um campo só, pelo rótulo. O valor não viaja dentro do atributo do botão
 // de propósito: telefone e @ com aspas ou acento já quebraram HTML montado assim,
 // e aqui o botão carrega só o rótulo, que é texto que nós mesmos escrevemos.
-function copiarCampo(botao, id, rotulo){
+function copiarCampo(bloco, id, rotulo){
   var p = acharPrograma(id);
   if (!p) return;
   var campo = dadosDaBanda(p).filter(function(d){ return d.rotulo === rotulo; })[0];
-  if (campo) copiar(botao, campo.valor);
+  if (!campo) return;
+
+  // O bloco inteiro é o botão, então o aviso de "copiado" acontece NELE: trocar o
+  // texto como se faz num botão comum apagaria o dado que a pessoa veio ver.
+  copiarTexto(campo.valor, function(deu){
+    if (!deu){
+      recado('Não consegui copiar sozinho. Selecione o texto e copie à mão.', 7000);
+      return;
+    }
+    var pista = bloco.querySelector('.pista');
+    var antes = pista ? pista.textContent : '';
+    bloco.classList.add('copiado');
+    if (pista) pista.textContent = 'copiado';
+    setTimeout(function(){
+      bloco.classList.remove('copiado');
+      if (pista) pista.textContent = antes;
+    }, 1400);
+  });
 }
 
 // Copiar de dentro do painel.
@@ -638,13 +748,15 @@ function copiarCampo(botao, id, rotulo){
 // quando a página roda dentro de uma moldura isolada, que é o caso aqui. Então
 // quando ele falha o jeito antigo assume: um campo escondido, selecionado e
 // copiado. Feio, e é o que funciona em todo lugar.
-function copiar(botao, texto){
-  var feito = function(){
-    var antes = botao.textContent;
-    botao.textContent = 'copiado';
-    botao.disabled = true;
-    setTimeout(function(){ botao.textContent = antes; botao.disabled = false; }, 1400);
-  };
+/**
+ * Põe um texto na área de transferência, e diz se deu.
+ *
+ * Dois caminhos, e o segundo não é luxo: o caminho moderno é bloqueado em parte dos
+ * navegadores quando a página roda dentro de uma moldura isolada, que é exatamente
+ * o caso do painel. Quando ele falha, o jeito antigo assume — um campo escondido,
+ * selecionado e copiado. Feio, e é o que funciona em todo lugar.
+ */
+function copiarTexto(texto, aoTerminar){
   var pelaMaoVelha = function(){
     var campo = document.createElement('textarea');
     campo.value = texto;
@@ -656,14 +768,27 @@ function copiar(botao, texto){
     var deu = false;
     try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
     campo.remove();
-    if (deu) feito();
-    else recado('Não consegui copiar sozinho. Selecione o texto e copie à mão.', 7000);
+    aoTerminar(deu);
   };
   if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(texto).then(feito, pelaMaoVelha);
+    navigator.clipboard.writeText(texto).then(function(){ aoTerminar(true); }, pelaMaoVelha);
   } else {
     pelaMaoVelha();
   }
+}
+
+/** Copiar a partir de um botão comum, que vira "copiado" por um instante. */
+function copiar(botao, texto){
+  copiarTexto(texto, function(deu){
+    if (!deu){
+      recado('Não consegui copiar sozinho. Selecione o texto e copie à mão.', 7000);
+      return;
+    }
+    var antes = botao.textContent;
+    botao.textContent = 'copiado';
+    botao.disabled = true;
+    setTimeout(function(){ botao.textContent = antes; botao.disabled = false; }, 1400);
+  });
 }
 
 // O Apps Script devolve arquivo em base64 — não dá para apontar um link direto
@@ -822,12 +947,19 @@ function semPrevia(motivo){
   return d;
 }
 
-function baixarFoto(id, indice, qual){
+function baixarFoto(botao, id, indice){
+  // Sempre a foto que a BANDA mandou. Havia a escolha entre original e editada
+  // porque o sistema guardava uma versão tratada à mão para o gerador usar; sem
+  // gerador, o que este painel entrega é o que foi recebido.
+  if (botao){ botao.disabled = true; botao.textContent = 'baixando…'; }
+  var soltar = function(){
+    if (botao){ botao.disabled = false; botao.textContent = 'Baixar'; }
+  };
   recado('Buscando a foto…', 20000);
   google.script.run
-    .withSuccessHandler(function(a){ baixarBase64(a); recado('Baixada: ' + a.nome, 5000); })
-    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
-    .painelBaixarFoto(CHAVE, id, indice, qual);
+    .withSuccessHandler(function(a){ soltar(); baixarBase64(a); recado('Baixada: ' + a.nome, 5000); })
+    .withFailureHandler(function(e){ soltar(); recado('Não consegui: ' + e.message, 9000); })
+    .painelBaixarFoto(CHAVE, id, indice, 'original');
 }
 
 function baixarFotosTodas(botao, id){
@@ -852,114 +984,11 @@ var QUEBRA = String.fromCharCode(10);
 var LADO_MINIMO = 600;
 var MB_MAXIMO = 15;
 
-function trocarFoto(id, indice){
-  var campo = document.createElement('input');
-  campo.type = 'file';
-  campo.accept = 'image/png,image/jpeg';
-  campo.onchange = function(){
-    var arquivo = campo.files && campo.files[0];
-    if (!arquivo) return;
-    if (arquivo.size > MB_MAXIMO * 1048576){
-      recado('A imagem tem ' + Math.round(arquivo.size / 1048576) +
-             ' MB e o limite é ' + MB_MAXIMO + ' MB.', 9000);
-      return;
-    }
-    var leitor = new FileReader();
-    leitor.onload = function(){
-      var img = new Image();
-      img.onload = function(){
-        if (Math.min(img.width, img.height) < LADO_MINIMO){
-          recado('A imagem tem ' + img.width + '×' + img.height + ' pixels. ' +
-                 'Abaixo de ' + LADO_MINIMO + ' ela sai borrada na arte.', 10000);
-          return;
-        }
-        confirmarTroca(id, indice, arquivo, leitor.result, img.width, img.height);
-      };
-      img.onerror = function(){ recado('Não consegui abrir esse arquivo como imagem.', 9000); };
-      img.src = leitor.result;
-    };
-    leitor.onerror = function(){ recado('Não consegui ler o arquivo.', 9000); };
-    leitor.readAsDataURL(arquivo);
-  };
-  campo.click();
-}
 
 // Ver antes de confirmar: a troca muda o que vai para a arte, e vale conferir que
 // é mesmo a imagem certa — sobretudo quando se editou várias.
-function confirmarTroca(id, indice, arquivo, dados, largura, altura){
-  document.getElementById('janelaCorpo').innerHTML =
-    '<h3 style="margin-bottom:4px">Substituir a foto ' + (indice + 1) + '</h3>' +
-    '<p class="meta" style="margin-bottom:10px">' + esc(arquivo.name) + ' · ' +
-      largura + '×' + altura + ' · ' + Math.round(arquivo.size / 1024) + ' KB</p>' +
-    '<img src="' + dados + '" style="max-width:100%;max-height:50vh;border:1px solid var(--borda);border-radius:8px">' +
-    '<p class="meta" style="margin-top:10px">A foto que a banda enviou continua ' +
-      'guardada e pode ser recuperada quando você quiser.</p>' +
-    '<div class="acoes" style="margin-top:12px">' +
-    '<button class="b forte" id="confirmaTroca">Usar esta imagem</button>' +
-    '<button class="b" onclick="fecharJanela()">Cancelar</button></div>';
-  document.getElementById('janela').showModal();
 
-  document.getElementById('confirmaTroca').onclick = function(){
-    this.disabled = true;
-    this.textContent = 'Enviando…';
-    google.script.run
-      .withSuccessHandler(function(){
-        fecharJanela();
-        esquecerPrevias(id);   // a imagem mudou; a lembrança não vale mais
-        carregar();
-        // A arte NÃO é refeita sozinha, e a oferta vem aqui para a decisão ser
-        // sua sem precisar procurar o botão. Dois motivos para não ser automático:
-        // trocando três fotos, refazer a cada troca rodaria a produção três vezes,
-        // e cada uma leva minutos; e refazer tira da fila as publicações já
-        // agendadas, o que não pode acontecer em silêncio.
-        if (confirm('Foto substituída.' + QUEBRA + QUEBRA +
-            'Refazer as artes agora com ela?' + QUEBRA + QUEBRA +
-            'Se for trocar mais fotos, troque todas primeiro e refaça uma vez só. ' +
-            'Refazer tira da fila as publicações já agendadas desta banda.')) {
-          // A mesma trava do botão de refazer: trocar duas fotos em seguida e
-          // aceitar as duas ofertas enfileiraria duas produções da mesma banda.
-          chamar('painelRefazer', [id, ''], null, 'refazer|' + id);
-        }
-      })
-      .withFailureHandler(function(e){
-        fecharJanela();
-        recado('Não consegui substituir: ' + e.message, 9000);
-      })
-      .painelSubstituirFoto(CHAVE, id, indice, {
-        nome: arquivo.name, tipo: arquivo.type,
-        conteudo: String(dados).split(',')[1]
-      });
-  };
-}
 
-function desfazerFoto(id, indice){
-  if (!confirm('Voltar a usar a foto que a banda enviou nesta posição?')) return;
-  esquecerPrevias(id);   // volta a valer a original; a lembrança da editada não serve
-  chamar('painelRestaurarFoto', [id, indice]);
-}
-
-function verHistoricoFotos(id){
-  google.script.run
-    .withSuccessHandler(function(linhas){
-      var html = '<h3 style="margin-bottom:10px">Histórico das fotos</h3>';
-      html += linhas.length
-        ? '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-          linhas.map(function(l){
-            return '<tr><td style="padding:6px 8px;border-bottom:1px solid var(--borda)">' +
-              esc(l.quando) + '</td><td style="padding:6px 8px;border-bottom:1px solid var(--borda)">foto ' +
-              l.foto + '</td><td style="padding:6px 8px;border-bottom:1px solid var(--borda)">' +
-              esc(l.acao) + '</td><td style="padding:6px 8px;border-bottom:1px solid var(--borda);color:var(--fraco)">' +
-              esc(l.de) + ' → ' + esc(l.para) + '</td></tr>';
-          }).join('') + '</table>'
-        : '<p class="meta">Nenhuma foto foi trocada nesta programação.</p>';
-      html += '<div class="acoes" style="margin-top:12px">' +
-        '<button class="b" onclick="fecharJanela()">Fechar</button></div>';
-      document.getElementById('janelaCorpo').innerHTML = html;
-      document.getElementById('janela').showModal();
-    })
-    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
-    .painelHistoricoDeFotos(CHAVE, id);
-}
 
 function fecharJanela(){ document.getElementById('janela').close(); }
 
