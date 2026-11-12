@@ -48,6 +48,20 @@
   .foto .nome{font-size:11px;color:var(--fraco);word-break:break-all}
   .foto .estado{font-size:10px;letter-spacing:.5px;text-transform:uppercase;
     border-radius:4px;padding:2px 6px;align-self:flex-start}
+  .fichaBox{margin-top:12px;border:1px solid var(--borda);border-radius:10px;
+    background:#121212}
+  .fichaBox summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--fraco);
+    user-select:none}
+  .fichaBox[open] summary{border-bottom:1px solid var(--borda);color:var(--texto)}
+  .ficha{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2px;
+    padding:10px 12px 0}
+  .ficha .campo{display:flex;align-items:center;gap:8px;padding:5px 0;
+    border-bottom:1px solid rgba(255,255,255,.05)}
+  .ficha .rot{flex:0 0 125px;font-size:11px;letter-spacing:.4px;color:var(--fraco);
+    text-transform:uppercase}
+  .ficha .val{flex:1;font-size:13px;word-break:break-word}
+  .ficha .campo .b.mini{opacity:.35;transition:opacity .12s}
+  .ficha .campo:hover .b.mini,.ficha .campo .b.mini:focus{opacity:1}
   .fotos img{background:#161616}
   .semPrevia{display:flex;align-items:center;justify-content:center;text-align:center;
     padding:10px;font-size:11px;color:var(--fraco);background:#161616;min-height:120px}
@@ -324,6 +338,36 @@ function desenharProgramacoes(){
     if (pecas.length) acoes.push('<button class="b" onclick="baixarTodas(\''+p.id+'\')">Baixar todas</button>');
     if (p.pastaUrl) acoes.push('<a class="b" style="text-decoration:none;display:inline-block" href="'+esc(p.pastaUrl)+'" target="_blank">Arquivos no Drive</a>');
 
+    // O CARTÃO DOS DADOS: tudo que a banda preencheu, num lugar só.
+    //
+    // Antes, metade disso estava espalhada na linha de cima do cartão e a outra
+    // metade não aparecia em lugar nenhum — o couvert e os perfis da colaboração
+    // ficavam guardados sem nunca serem mostrados, justamente os dois que vão
+    // escritos na arte e na publicação e que mais precisam ser conferidos antes de
+    // aprovar. Para falar com a banda era preciso abrir a planilha.
+    //
+    // Cada dado tem o seu botão de copiar, e há um que copia tudo: copiar um a um
+    // serve para colar um telefone numa ligação, e copiar tudo serve para mandar a
+    // ficha inteira para alguém.
+    var dados = dadosDaBanda(p);
+    var cartaoDados =
+      '<details class="fichaBox"><summary>Dados da banda</summary>' +
+      '<div class="ficha">' +
+      dados.map(function(d){
+        return '<div class="campo">' +
+          '<span class="rot">'+esc(d.rotulo)+'</span>' +
+          '<span class="val">'+esc(d.valor)+'</span>' +
+          (d.copiavel
+            ? '<button class="b mini" title="copiar só este" ' +
+              'onclick="copiar(this,'+JSON.stringify(d.valor).replace(/"/g,'&quot;')+')">copiar</button>'
+            : '') +
+          '</div>';
+      }).join('') +
+      '</div>' +
+      '<div class="acoes" style="margin-top:10px">' +
+      '<button class="b" onclick="copiarFicha(this,\''+p.id+'\')">Copiar todos os dados</button>' +
+      '</div></details>';
+
     return '<div class="cartao">' +
       '<div class="linha"><div><div class="banda">'+esc(p.banda)+'</div>' +
       '<div class="meta">'+esc(p.dataShow)+' · '+esc(p.diaSemana)+' · '+esc(p.horaShow)+' · '+esc(p.instagram)+
@@ -332,11 +376,88 @@ function desenharProgramacoes(){
       '<span class="etq e-'+esc(p.situacao)+'">'+esc(p.situacao.replace(/_/g,' '))+'</span></div>' +
       (p.erro ? '<div class="meta" style="color:#ff8d95;margin-top:8px">'+esc(p.erro)+'</div>' : '') +
       (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +
-      fotos + galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
+      cartaoDados + fotos + galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
   }).join('');
 
   // As miniaturas vêm depois da tela, para a lista não esperar pelas imagens.
   carregarPrevias();
+}
+
+// Tudo que a banda preencheu, na ordem em que se precisa olhar.
+//
+// Dado que ela não preencheu aparece assim mesmo, dizendo que está vazio: um campo
+// que some da ficha é indistinguível de um campo que ninguém pensou em mostrar, e
+// "sem couvert" é informação — quer dizer entrada franca, e a arte sai sem a linha
+// do preço.
+function dadosDaBanda(p){
+  var fotos = (p.fotos || []).length;
+  var linhas = [
+    { rotulo: 'Banda', valor: p.banda || '—', copiavel: !!p.banda },
+    { rotulo: 'Data do show', valor: (p.dataShow || '—') +
+        (p.diaSemana ? ' · ' + p.diaSemana.toLowerCase() : ''), copiavel: !!p.dataShow },
+    { rotulo: 'Horário do show', valor: p.horaShow || '—', copiavel: !!p.horaShow },
+    { rotulo: 'Telefone', valor: p.telefone || '— (não informado)', copiavel: !!p.telefone },
+    { rotulo: 'Instagram', valor: p.instagram || '— (não informado)', copiavel: !!p.instagram },
+    { rotulo: 'Couvert', valor: p.couvert ? 'R$ ' + p.couvert : 'sem couvert (entrada franca)',
+      copiavel: !!p.couvert },
+    { rotulo: 'Colaboração', valor: (p.colabs && p.colabs.length)
+        ? p.colabs.join(', ') : 'não pediu colaboração',
+      copiavel: !!(p.colabs && p.colabs.length) },
+    { rotulo: 'Fotos enviadas', valor: fotos + (fotos === 1 ? ' foto' : ' fotos') +
+        (p.juntar ? ' · integrantes separados, para juntar numa foto só' : '') +
+        (p.temLogo ? ' · com logo' : ' · sem logo'), copiavel: false },
+    { rotulo: 'Inscrita em', valor: p.recebidoEm || '—', copiavel: false },
+    { rotulo: 'Situação', valor: (p.situacao || '').replace(/_/g, ' ').toLowerCase(),
+      copiavel: false }
+  ];
+  return linhas;
+}
+
+// O texto da ficha inteira, pronto para colar numa conversa.
+function fichaEmTexto(p){
+  return dadosDaBanda(p)
+    .map(function(d){ return d.rotulo + ': ' + d.valor; })
+    .join(String.fromCharCode(10));
+}
+
+function copiarFicha(botao, id){
+  var p = ((dados && dados.programacoes) || []).filter(function(x){ return x.id === id; })[0];
+  if (!p) return;
+  copiar(botao, fichaEmTexto(p));
+}
+
+// Copiar de dentro do painel.
+//
+// O caminho moderno (navigator.clipboard) é bloqueado em parte dos navegadores
+// quando a página roda dentro de uma moldura isolada, que é o caso aqui. Então
+// quando ele falha o jeito antigo assume: um campo escondido, selecionado e
+// copiado. Feio, e é o que funciona em todo lugar.
+function copiar(botao, texto){
+  var feito = function(){
+    var antes = botao.textContent;
+    botao.textContent = 'copiado';
+    botao.disabled = true;
+    setTimeout(function(){ botao.textContent = antes; botao.disabled = false; }, 1400);
+  };
+  var pelaMaoVelha = function(){
+    var campo = document.createElement('textarea');
+    campo.value = texto;
+    campo.setAttribute('readonly', '');
+    campo.style.position = 'fixed';
+    campo.style.opacity = '0';
+    document.body.appendChild(campo);
+    campo.select();
+    var deu = false;
+    try { deu = document.execCommand('copy'); } catch (e) { deu = false; }
+    campo.remove();
+    if (deu) feito();
+    else recado('Não consegui copiar sozinho. Selecione o texto e copie à mão.', 7000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(feito, pelaMaoVelha);
+  } else {
+    pelaMaoVelha();
+  }
 }
 
 // O Apps Script devolve arquivo em base64 — não dá para apontar um link direto

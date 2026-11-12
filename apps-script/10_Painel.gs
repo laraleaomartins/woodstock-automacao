@@ -58,6 +58,17 @@ function painelCarregar(chave) {
       pastaUrl: p.PastaId ? 'https://drive.google.com/drive/folders/' + p.PastaId : '',
       recebidos: (artes.recebidos && artes.recebidos.fotos ? artes.recebidos.fotos.length : 0) +
         (artes.recebidos && artes.recebidos.logo ? 1 : 0),
+      // O couvert e os perfis da colaboração moram dentro do registro dos arquivos
+      // recebidos, e não numa coluna da planilha. Sem trazê-los aqui, o painel
+      // mostrava tudo que a banda preencheu MENOS esses dois — justamente os que se
+      // precisa conferir antes de aprovar, porque vão escritos na arte e na
+      // publicação.
+      couvert: String((artes.recebidos && artes.recebidos.couvert) || ''),
+      colabs: [].concat((artes.recebidos && artes.recebidos.colabs) || []),
+      // Se a banda disse que são integrantes separados para juntar numa foto só.
+      // Explica por que a arte saiu montada, e é dado que ela preencheu.
+      juntar: !!(artes.recebidos && artes.recebidos.juntar),
+      temLogo: !!(artes.recebidos && artes.recebidos.logo),
       // As fotos que a banda enviou, cada uma com o seu estado. O painel precisa
       // delas junto com o resto para poder mostrar a foto ao lado do problema que
       // ela teve, em vez de um recado geral.
