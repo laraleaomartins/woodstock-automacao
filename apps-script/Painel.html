@@ -391,10 +391,13 @@ function carregar(){
 
 function desenhar(){
   var e = dados.estado;
+  // O resumo falava de publicação — fila, publicadas, modo —, que não existe mais.
+  // Agora conta o que este painel coleta: inscrições e fotos.
+  var ativas = dados.programacoes.filter(function(p){ return p.situacao !== 'CANCELADA'; });
+  var fotos = ativas.reduce(function(n, p){ return n + ((p.fotos || []).length); }, 0);
   document.getElementById('estado').textContent =
-    dados.programacoes.length + ' programações · ' +
-    (e.postsPorSituacao.AGENDADO || 0) + ' na fila · ' +
-    (e.postsPorSituacao.PUBLICADO || 0) + ' publicadas · modo ' + e.modo;
+    ativas.length + (ativas.length === 1 ? ' inscrição' : ' inscrições') + ' · ' +
+    fotos + (fotos === 1 ? ' foto recebida' : ' fotos recebidas');
 
   var trava = document.getElementById('trava');
   if (!e.publicandoDeVerdade){
@@ -1028,6 +1031,9 @@ document.querySelectorAll('nav button').forEach(function(b){
   b.onclick = function(){
     document.querySelectorAll('nav button').forEach(function(x){ x.classList.remove('on'); });
     b.classList.add('on');
+    // Os filtros valem para a lista de inscrições. Mostrá-los na agenda ou no
+    // histórico faria parecer que filtram aquilo também, e não filtram.
+    document.getElementById('barraFiltro').hidden = (b.dataset.aba !== 'programacoes');
     ['programacoes','calendario','historico'].forEach(function(id){
       document.getElementById(id).hidden = (id !== b.dataset.aba);
     });
