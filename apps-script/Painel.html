@@ -453,39 +453,68 @@ function verLegendas(id){
 
 // ------------------------------------------------- fotos enviadas pela banda
 
-// Busca as miniaturas DEPOIS que a tela já apareceu, uma de cada vez.
+// As miniaturas, buscadas depois que a tela já apareceu.
 //
-// De uma vez só seriam quatro por banda — com cinco bandas na tela, vinte pedidos
-// simultâneos ao mesmo servidor, que o Apps Script atende devagar e em fila. Em
-// sequência, a primeira foto aparece em poucos segundos e as outras vão chegando,
-// que é melhor que todas aparecerem juntas bem mais tarde.
-var buscandoPrevias = false;
+// UMA viagem por banda, e as bandas todas ao mesmo tempo. A primeira versão disto
+// buscava uma foto por vez, por educação com o servidor, e foi erro meu: cada ida e
+// volta ao Apps Script custa de 2 a 3 segundos, então quatro fotos de uma banda
+// davam mais de dez segundos de quadrado cinza na tela. Agora o tempo total é o de
+// UMA ida e volta, não o de quatro vezes o número de bandas.
+//
+// O que já veio fica guardado enquanto o painel está aberto. Isso importa mais do
+// que parece: a lista inteira é redesenhada depois de cada ação — aprovar, trocar
+// foto, filtrar — e sem a lembrança as fotos recomeçariam do cinza toda vez.
+var previasGuardadas = {};
 
 function carregarPrevias(){
-  if (buscandoPrevias) return;
   var pendentes = Array.prototype.slice.call(
     document.querySelectorAll('img[data-prev]:not([data-feito])'));
   if (!pendentes.length) return;
-  buscandoPrevias = true;
 
-  var proxima = function(){
-    var img = pendentes.shift();
-    if (!img){ buscandoPrevias = false; return; }
+  var porBanda = {};
+  pendentes.forEach(function(img){
     img.setAttribute('data-feito', '1');
     var partes = img.getAttribute('data-prev').split('|');
+    var id = partes[0], indice = Number(partes[1]);
+    var lembrado = previasGuardadas[id + '|' + indice];
+    if (lembrado !== undefined){
+      if (lembrado) img.src = lembrado;
+      else img.replaceWith(semPrevia('não consegui montar a prévia'));
+      return;
+    }
+    (porBanda[id] = porBanda[id] || []).push({ img: img, indice: indice });
+  });
+
+  Object.keys(porBanda).forEach(function(id){
+    var alvos = porBanda[id];
     google.script.run
-      .withSuccessHandler(function(dados){
-        if (dados) img.src = dados;
-        else img.replaceWith(semPrevia('não consegui montar a prévia'));
-        proxima();
+      .withSuccessHandler(function(lista){
+        var porIndice = {};
+        (lista || []).forEach(function(p){ porIndice[p.indice] = p; });
+        alvos.forEach(function(a){
+          var p = porIndice[a.indice];
+          var dados = p ? p.dados : '';
+          previasGuardadas[id + '|' + a.indice] = dados || '';
+          if (dados) a.img.src = dados;
+          else a.img.replaceWith(semPrevia((p && p.erro) || 'prévia não veio'));
+        });
       })
       .withFailureHandler(function(e){
-        img.replaceWith(semPrevia(e && e.message ? e.message : 'erro ao buscar'));
-        proxima();
+        alvos.forEach(function(a){
+          a.img.replaceWith(semPrevia(e && e.message ? e.message : 'erro ao buscar'));
+        });
       })
-      .painelPreviaFoto(CHAVE, partes[0], Number(partes[1]), partes[2]);
-  };
-  proxima();
+      .painelPreviasDaProgramacao(CHAVE, id);
+  });
+}
+
+// Depois de trocar ou desfazer uma foto, o que estava guardado daquela banda não
+// vale mais: a imagem mudou. Sem isto o painel mostraria a foto antiga com ar de
+// atual, que é o pior tipo de erro — parece ter funcionado.
+function esquecerPrevias(id){
+  Object.keys(previasGuardadas).forEach(function(k){
+    if (k.indexOf(id + '|') === 0) delete previasGuardadas[k];
+  });
 }
 
 // No lugar da imagem que não veio, um aviso em texto — e não o quadrado de imagem
@@ -575,6 +604,7 @@ function confirmarTroca(id, indice, arquivo, dados, largura, altura){
     google.script.run
       .withSuccessHandler(function(){
         fecharJanela();
+        esquecerPrevias(id);   // a imagem mudou; a lembrança não vale mais
         carregar();
         // A arte NÃO é refeita sozinha, e a oferta vem aqui para a decisão ser
         // sua sem precisar procurar o botão. Dois motivos para não ser automático:
@@ -601,6 +631,7 @@ function confirmarTroca(id, indice, arquivo, dados, largura, altura){
 
 function desfazerFoto(id, indice){
   if (!confirm('Voltar a usar a foto que a banda enviou nesta posição?')) return;
+  esquecerPrevias(id);   // volta a valer a original; a lembrança da editada não serve
   chamar('painelRestaurarFoto', [id, indice]);
 }
 

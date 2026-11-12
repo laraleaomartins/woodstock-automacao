@@ -131,12 +131,63 @@ function painelPreviaFoto(chave, id, indice, qual) {
 
   var alvo = (qual === 'editada' && foto.manual) ? foto.manual : foto;
   if (!alvo || !alvo.id) return '';
+  return previaDeArquivo(alvo.id);
+}
 
-  var arquivo = DriveApp.getFileById(alvo.id);
+/**
+ * TODAS as prévias de uma programação, numa viagem só.
+ *
+ * Por que isto existe, e é a correção de um erro meu: a primeira versão buscava uma
+ * foto por vez, achando que era mais gentil do que pedir tudo de uma vez. Cada ida e
+ * volta ao Apps Script custa de 2 a 3 segundos, então quatro fotos de uma banda
+ * viravam mais de dez segundos de quadrado cinza na tela. Trocar o quadrado de
+ * imagem quebrada por um quadrado cinza que demora não é conserto.
+ *
+ * Agora é uma viagem por banda, e o painel pede as de todas as bandas ao mesmo
+ * tempo. O tempo total passa a ser o de UMA ida e volta, não o de quatro vezes o
+ * número de bandas.
+ *
+ * O que cabe numa resposta: a miniatura que o Drive já guarda tem uns poucos
+ * quilobytes, então quatro delas somam bem menos que as artes que o painel já
+ * carrega hoje.
+ */
+function painelPreviasDaProgramacao(chave, id) {
+  exigirChave(chave);
+  var prog = acharProgramacao(id);
+  if (!prog) throw new Error('Programação não encontrada.');
 
-  // O Drive guarda uma miniatura pronta de cada imagem; é ela que queremos, porque
-  // pesa uns poucos quilobytes. Nem todo arquivo tem — e aí o jeito é mandar o
-  // original, mas só se ele for pequeno o bastante para não travar a tela.
+  return (recebidosDe(prog).fotos || []).map(function (foto, i) {
+    var usar = foto.manual && foto.manual.id ? foto.manual : foto;
+    var saida = { indice: i, dados: '', erro: '' };
+    if (!usar || !usar.id) {
+      saida.erro = 'sem arquivo';
+      return saida;
+    }
+    try {
+      saida.dados = previaDeArquivo(usar.id);
+      if (!saida.dados) saida.erro = 'não consegui montar a prévia';
+    } catch (e) {
+      saida.erro = 'não consegui abrir o arquivo';
+    }
+    return saida;
+  });
+}
+
+/**
+ * A imagem pequena de um arquivo do Drive, pronta para entrar numa página.
+ *
+ * Quem busca é o sistema, e não o navegador. O caminho do navegador não funciona:
+ * o endereço público do Drive só responde a quem está com a sessão do Google, as
+ * fotos das bandas são particulares, e o painel roda dentro de uma moldura isolada
+ * para onde o navegador não manda essa sessão. Medido: o endereço devolve 302, e a
+ * tela ficava com o quadrado de imagem quebrada.
+ */
+function previaDeArquivo(idArquivo) {
+  var arquivo = DriveApp.getFileById(idArquivo);
+
+  // O Drive guarda uma miniatura pronta de cada imagem, e é ela que queremos: pesa
+  // uns poucos quilobytes. Nem todo arquivo tem — e aí vai o original, mas só se for
+  // pequeno o bastante para não travar a tela.
   var blob = null;
   try { blob = arquivo.getThumbnail(); } catch (e) { blob = null; }
   if (!blob) {
@@ -145,7 +196,6 @@ function painelPreviaFoto(chave, id, indice, qual) {
     if (!tamanho || tamanho > 900 * 1024) return '';
     blob = arquivo.getBlob();
   }
-
   return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' +
     Utilities.base64Encode(blob.getBytes());
 }
