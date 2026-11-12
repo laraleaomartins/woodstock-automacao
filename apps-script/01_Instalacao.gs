@@ -233,14 +233,22 @@ function garantirGatilhos(form) {
   if (nomes.indexOf('aoReceberResposta') < 0) {
     ScriptApp.newTrigger('aoReceberResposta').forForm(form).onFormSubmit().create();
   }
-  if (nomes.indexOf('rotinaArtes') < 0) {
-    ScriptApp.newTrigger('rotinaArtes').timeBased().everyMinutes(15).create();
-  }
-  if (nomes.indexOf('rotinaPublicacao') < 0) {
-    ScriptApp.newTrigger('rotinaPublicacao').timeBased().everyMinutes(15).create();
-  }
-  if (nomes.indexOf('rotinaRenovarToken') < 0) {
-    ScriptApp.newTrigger('rotinaRenovarToken').timeBased().everyDays(1).atHour(4).create();
+  // Os gatilhos do motor (gerar arte, publicar, renovar o token) só voltam quando
+  // MOTOR_DE_ARTES_LIGADO for true. Com ele desligado eles são APAGADOS, e não só
+  // ignorados: um gatilho que acorda o script de 15 em 15 minutos para não fazer
+  // nada gasta o orçamento diário de execuções da conta gratuita à toa.
+  if (MOTOR_DE_ARTES_LIGADO) {
+    if (nomes.indexOf('rotinaArtes') < 0) {
+      ScriptApp.newTrigger('rotinaArtes').timeBased().everyMinutes(15).create();
+    }
+    if (nomes.indexOf('rotinaPublicacao') < 0) {
+      ScriptApp.newTrigger('rotinaPublicacao').timeBased().everyMinutes(15).create();
+    }
+    if (nomes.indexOf('rotinaRenovarToken') < 0) {
+      ScriptApp.newTrigger('rotinaRenovarToken').timeBased().everyDays(1).atHour(4).create();
+    }
+  } else {
+    desligarGatilhosDoMotor();
   }
 }
 

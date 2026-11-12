@@ -6,6 +6,13 @@
  */
 
 import { criarAmbiente } from './ambiente_falso.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
+const FONTE = (nome) =>
+  fs.readFileSync(path.join(AQUI, '..', 'apps-script', nome), 'utf8');
 
 let passou = 0, falhou = 0;
 const casos = [];
@@ -856,11 +863,14 @@ teste('O couvert vem do jeito que a pessoa escrever e vira número limpo', (ctx)
   }
 });
 
-teste('A colaboração aceita até 3 perfis, sem repetir e sem arroba', (ctx) => {
+teste('A colaboração guarda UM perfil, sem arroba repetida', (ctx) => {
+  // Eram três porque o Instagram aceita três coautores e o sistema mandava o convite
+  // sozinho. Hoje quem convida é o bar, à mão, e o formulário pede um só: três campos
+  // para usar um é pedir à banda um trabalho que não vira nada.
   const limpos = ctx.perfisDeColaboracao(['@um', 'dois', '@um', '  @tres ', '@quatro', '']);
-  conferir(limpos.length === 3, `sobraram 3 perfis, não ${limpos.length}`);
-  conferir(limpos.join(',') === '@um,@dois,@tres',
-    'na ordem, sem repetido e normalizados: ' + limpos.join(','));
+  conferir(limpos.length === 1, `sobrou 1 perfil, não ${limpos.length}`);
+  conferir(limpos.join(',') === '@um',
+    'o primeiro, normalizado: ' + limpos.join(','));
   conferir(ctx.perfisDeColaboracao([]).length === 0, 'sem colaboração, lista vazia');
 });
 
@@ -875,7 +885,7 @@ teste('Couvert e colaboradores sobrevivem até a hora de publicar', (ctx) => {
 
   const recebidos = JSON.parse(ctx.acharProgramacao(r.id).Artes).recebidos;
   conferir(recebidos.couvert === '25', 'o couvert ficou guardado como "25"');
-  conferir((recebidos.colabs || []).length === 2, 'os 2 perfis ficaram guardados');
+  conferir((recebidos.colabs || []).length === 1, 'o perfil ficou guardado');
 
   const job = ctx.jobsDeArtes(5).filter((j) => j.id === r.id)[0];
   conferir(job && job.couvert === '25', 'o couvert chegou à oficina que desenha a arte');
@@ -884,8 +894,8 @@ teste('Couvert e colaboradores sobrevivem até a hora de publicar', (ctx) => {
     FEED: { A: 'https://exemplo/a.jpg' }, STORY: { A: 'https://exemplo/as.jpg' }
   }, []);
   const depois = JSON.parse(ctx.acharProgramacao(r.id).Artes).recebidos || {};
-  conferir((depois.colabs || []).join(',') === '@bandadaweb,@baterista',
-    'e continuam lá depois das artes ficarem prontas');
+  conferir((depois.colabs || []).join(',') === '@bandadaweb',
+    'e continua lá depois das artes ficarem prontas');
 
   // A legenda tem de anunciar o MESMO valor que a arte desenha. Se um for do show e
   // o outro ficar escrito fixo, a peça diz um preço e o texto diz outro.
@@ -1060,6 +1070,24 @@ teste('Enxurrada de inscrições é segurada', (ctx) => {
     if (!ctx.receberInscricao(inscricaoFalsa({ banda: 'Banda ' + i })).ok) recusadas++;
   }
   conferir(recusadas >= 5, recusadas + ' envios foram barrados depois do limite da hora');
+});
+
+teste('No sistema de verdade, o motor de artes vem DESLIGADO', () => {
+  // As outras baterias ligam o motor de propósito, para provar que ele continua
+  // funcionando e poder ser religado um dia. Este teste confere a outra metade: que
+  // no sistema que vai para o ar ele está desligado. Sem ele, alguém poderia religar
+  // o motor sem querer e as baterias continuariam verdes.
+  const fonte = FONTE('00_Config.gs');
+
+  const linha = fonte.split(String.fromCharCode(10)).find((l) => l.includes('var MOTOR_DE_ARTES_LIGADO'));
+  conferir(!!linha, 'a chave geral do motor existe em 00_Config.gs');
+  conferir(/=\s*false\s*;/.test(linha || ''),
+    'e vem desligada: ' + (linha || '').trim());
+
+  for (const arquivo of ['06_Rotinas.gs', '05_Instagram.gs']) {
+    conferir(FONTE(arquivo).includes('if (!MOTOR_DE_ARTES_LIGADO)'),
+      arquivo + ' respeita a chave logo na entrada');
+  }
 });
 
 teste('A página de inscrição é pública e não vaza o painel', (ctx) => {

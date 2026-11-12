@@ -258,6 +258,14 @@ export function criarAmbiente() {
     vm.runInContext(fs.readFileSync(path.join(FONTES, f), 'utf8'), contexto, { filename: f });
   }
 
+  // O motor de artes e publicação está DESLIGADO no sistema de verdade desde
+  // 12/11/2026 — ver MOTOR_DE_ARTES_LIGADO, em 00_Config.gs. Aqui ele é ligado de
+  // propósito: estas baterias existem para provar que o motor continua funcionando,
+  // e é isso que permite religá-lo um dia sem redescobrir os defeitos que ele já
+  // custou. Que no sistema real ele venha desligado é conferido num teste próprio,
+  // que lê a constante no arquivo.
+  contexto.MOTOR_DE_ARTES_LIGADO = true;
+
   // Preparo mínimo: propriedades e abas, como a instalação deixaria.
   estado.props.PLANILHA_ID = 'planilha-de-teste';
   estado.props.PASTA_RAIZ_ID = 'pasta-raiz';

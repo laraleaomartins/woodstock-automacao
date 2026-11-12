@@ -1,4 +1,24 @@
 /**
+ * ============================================================================
+ * DESATIVADO EM 12/11/2026 — o sistema não publica mais no Instagram.
+ *
+ * Nada aqui foi apagado nem comentado: o módulo continua inteiro e funcionando.
+ * O que mudou é que ninguém o chama. A chave está em 00_Config.gs, na constante
+ * MOTOR_DE_ARTES_LIGADO; com ela em false, as rotinas saem pela porta logo no
+ * começo e os gatilhos nem existem.
+ *
+ * Por que não foi apagado: a decisão de fazer as artes por fora pode ser revertida,
+ * e isto aqui custou caro para ficar de pé — a conta de publicação, o token sem
+ * validade, o limite de publicações por dia respeitado antes de publicar, a
+ * repetição de quem falha, o convite de colaboração que vira aviso quando a API
+ * recusa. Reescrever seria pagar tudo de novo.
+ *
+ * PARA RELIGAR: MOTOR_DE_ARTES_LIGADO = true e rodar instalar() para recriar os
+ * gatilhos.
+ * ============================================================================
+ */
+
+/**
  * Publicação no Instagram pela API oficial da Meta (gratuita).
  *
  * Como funciona lá: primeiro você cria um "contêiner" apontando para a imagem, depois
@@ -220,6 +240,9 @@ function descobrirContaInstagram(idInformado) {
  * alguém o revogou — que é a única forma de ele parar de funcionar.
  */
 function rotinaRenovarToken() {
+  // Desligada desde 12/11/2026 junto com a publicação: sem publicar, não há token
+  // para manter vivo. Ver MOTOR_DE_ARTES_LIGADO, em 00_Config.gs.
+  if (!MOTOR_DE_ARTES_LIGADO) return;
   if (!igConfigurado()) return;
   try {
     chamarGraph(segredo('IG_USER_ID'), 'get', { fields: 'id,username' });

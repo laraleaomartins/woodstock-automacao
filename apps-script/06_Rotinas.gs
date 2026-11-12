@@ -4,6 +4,9 @@
 
 /** Cuida da fila de produção das artes: destrava o que empacou e avisa o GitHub. */
 function rotinaArtes() {
+  // Desligada desde 12/11/2026: o sistema não gera mais arte. Ver
+  // MOTOR_DE_ARTES_LIGADO, em 00_Config.gs, para o porquê e para religar.
+  if (!MOTOR_DE_ARTES_LIGADO) return;
   try {
     var limite = Date.now() - 45 * 60000;
     linhas(ABA.PROGRAMACOES).forEach(function (p) {
@@ -81,6 +84,9 @@ function cutucarGithub() {
 
 /** Publica tudo que venceu. */
 function rotinaPublicacao() {
+  // Desligada desde 12/11/2026: o sistema não publica mais no Instagram. Ver
+  // MOTOR_DE_ARTES_LIGADO, em 00_Config.gs.
+  if (!MOTOR_DE_ARTES_LIGADO) return 0;
   try {
     comTrava('rotinaPublicacao', publicarVencidos);
   } catch (e) {

@@ -1,3 +1,20 @@
+# ============================================================================
+# DESATIVADO EM 12/11/2026 — o sistema nao gera mais arte.
+#
+# O Woodstock virou um painel de coleta: a banda manda os dados e as fotos, e as
+# artes sao feitas fora do sistema. Nada aqui foi apagado nem comentado — este
+# arquivo continua inteiro e funcionando. O que mudou e que ninguem o chama: o
+# agendamento da oficina saiu de .github/workflows/artes.yml e a chave
+# MOTOR_DE_ARTES_LIGADO, em apps-script/00_Config.gs, esta em false.
+#
+# Por que nao foi apagado: isto custou dezenas de defeitos reais para ficar de pe —
+# a memoria que o motor dos modelos nao devolve, o contorno cinza da mascara dura,
+# a polaroide que cortava o artista, o grupo que flutuava enfileirado. Reescrever
+# seria pagar tudo de novo. A decisao de fazer as artes por fora pode ser revertida.
+#
+# PARA RELIGAR: ver o cabecalho de .github/workflows/artes.yml.
+# ============================================================================
+
 """
 Converte as peças de PNG para JPEG.
 

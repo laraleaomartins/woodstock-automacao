@@ -82,15 +82,16 @@
       vocês aceitam pelo aplicativo. Só funciona em perfil aberto, e só na publicação —
       stories não aceitam colaboração.</div>
 
+    <!-- UM perfil, e não três. Eram três porque o Instagram aceita até três
+         coautores, e o sistema mandava o convite sozinho. Hoje quem convida é o bar,
+         à mão, e o que o formulário precisa saber é de quem é o perfil que vai
+         assinar junto — um campo. Três campos pediam à banda um trabalho que não
+         vira nada. -->
     <div id="caixaColab" class="oculto">
-      <label>Perfis que vão aparecer como autores <span class="op">— até 3</span></label>
+      <label>Perfil que vai aparecer como coautor</label>
       <input type="text" id="colab1" placeholder="@suabanda" maxlength="40">
-      <input type="text" id="colab2" placeholder="@outroperfil (opcional)" maxlength="40"
-             style="margin-top:8px">
-      <input type="text" id="colab3" placeholder="@maisum (opcional)" maxlength="40"
-             style="margin-top:8px">
-      <div class="dica">O primeiro já vem com o @ da banda. Pode trocar ou acrescentar —
-        por exemplo o perfil de um integrante.</div>
+      <div class="dica">Já vem com o @ que vocês informaram acima. Pode trocar — por
+        exemplo pelo perfil de um integrante.</div>
     </div>
 
     <div class="guia">
@@ -267,9 +268,7 @@ document.getElementById('f').addEventListener('submit', function(ev){
       instagram: document.getElementById('instagram').value,
       couvert: document.getElementById('couvert').value,
       colabs: document.getElementById('querColab').checked
-        ? ['colab1', 'colab2', 'colab3'].map(function(id){
-            return document.getElementById(id).value;
-          })
+        ? [document.getElementById('colab1').value]
         : [],
       sobrenome: document.getElementById('sobrenome').value,
       juntar: document.getElementById('juntar').checked,

@@ -112,11 +112,15 @@ function valorDeCouvert(bruto) {
 }
 
 /**
- * Os perfis que vão assinar a publicação junto com o bar.
+ * O perfil que vai assinar a publicação junto com o bar.
  *
- * O Instagram aceita no máximo três, só em publicação de feed (story não aceita),
- * e só perfil aberto. Nada disso dá para conferir daqui: o convite é mandado na
- * hora de publicar, e quem aceita é a banda, pelo aplicativo dela.
+ * UM, e não três. O Instagram aceita até três coautores, e enquanto o sistema
+ * mandava o convite sozinho fazia sentido coletar os três. Hoje quem convida é o
+ * bar, à mão, e o que o formulário precisa saber é de quem é o perfil que assina
+ * junto. Pedir três campos à banda para usar um é pedir trabalho que não vira nada.
+ *
+ * Continua devolvendo lista: o campo guardado é uma lista, e trocar o formato
+ * quebraria a leitura das inscrições que já existem.
  */
 function perfisDeColaboracao(lista) {
   var vistos = {};
@@ -127,7 +131,7 @@ function perfisDeColaboracao(lista) {
       vistos[p] = true;
       return true;
     })
-    .slice(0, 3);
+    .slice(0, 1);
 }
 
 function blobDeEnvio(arquivo, nomePadrao) {

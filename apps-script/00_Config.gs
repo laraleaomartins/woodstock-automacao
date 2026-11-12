@@ -140,3 +140,53 @@ function segredo(chave) {
 function definirSegredo(chave, valor) {
   PropertiesService.getScriptProperties().setProperty(chave, valor);
 }
+
+
+/**
+ * A chave geral do motor de artes e publicação.
+ *
+ * Em 12/11/2026 o sistema deixou de gerar arte e de publicar no Instagram: passou a
+ * ser um painel de coleta, e o trabalho de arte é feito fora. Nada disso foi apagado
+ * — o motor continua inteiro no lugar, e esta é a chave que o desliga.
+ *
+ * O que ela desliga, quando está em false:
+ *   - as rotinas de 15 minutos que geravam arte e publicavam;
+ *   - a renovação do token do Instagram;
+ *   - as ações da porta de entrada que mandavam trabalho para a oficina;
+ *   - os botões de arte e publicação no painel.
+ *
+ * O que ela NÃO desliga, de propósito: receber inscrição, guardar as fotos, o
+ * painel, baixar fotos e os relatórios. É isso que o sistema é hoje.
+ *
+ * PARA RELIGAR: ponha true aqui, rode instalar() de novo para recriar os gatilhos
+ * (eles foram apagados ao desligar) e reative o fluxo "Produzir artes" na aba
+ * Actions do GitHub. Nenhuma linha do motor precisa ser reescrita.
+ */
+var MOTOR_DE_ARTES_LIGADO = false;
+
+/**
+ * Apaga os gatilhos do motor, deixando os que o painel de coleta usa.
+ *
+ * Desligar pela chave acima impede o trabalho de acontecer, mas o gatilho continuaria
+ * acordando o script de 15 em 15 minutos para não fazer nada — gastando o orçamento
+ * diário de execuções da conta gratuita à toa. Então os gatilhos saem de verdade.
+ *
+ * Roda sozinha na instalação. Para desligar num sistema já instalado, rode esta
+ * função uma vez pelo editor do Apps Script.
+ */
+function desligarGatilhosDoMotor() {
+  var doMotor = ['rotinaArtes', 'rotinaPublicacao', 'rotinaRenovarToken'];
+  var apagados = [];
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (doMotor.indexOf(t.getHandlerFunction()) >= 0) {
+      ScriptApp.deleteTrigger(t);
+      apagados.push(t.getHandlerFunction());
+    }
+  });
+  var texto = apagados.length
+    ? 'Gatilhos do motor apagados: ' + apagados.join(', ')
+    : 'Nenhum gatilho do motor estava ativo.';
+  registrar('INFO', '', 'MOTOR_DESLIGADO', texto);
+  console.log(texto);
+  return texto;
+}

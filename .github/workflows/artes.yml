@@ -1,6 +1,25 @@
 name: Produzir artes
 
-# Três caminhos levam a produção a acontecer, e a redundância é de propósito:
+# ============================================================================
+# DESATIVADO EM 12/11/2026 — o sistema não gera mais arte.
+#
+# O Woodstock virou um painel de coleta: a banda manda os dados e as fotos, e as
+# artes são feitas fora do sistema. Nada aqui foi apagado; o que mudou é que o
+# agendamento saiu, então este fluxo não roda mais sozinho.
+#
+# Ele continua podendo ser disparado à mão (workflow_dispatch), de propósito: é
+# assim que dá para conferir o motor sem religá-lo para todo mundo.
+#
+# PARA RELIGAR: devolver o bloco "schedule" abaixo, pôr MOTOR_DE_ARTES_LIGADO = true
+# em apps-script/00_Config.gs e rodar instalar() para recriar os gatilhos.
+#
+#   schedule:
+#     - cron: '3,13,23,33,43,53 * * * *'
+#
+# O texto abaixo descreve como era quando estava ligado, e vale para quando voltar.
+# ============================================================================
+#
+# Três caminhos levavam a produção a acontecer, e a redundância era de propósito:
 #
 #  1. este agendamento, de 10 em 10 minutos, que é a GARANTIA — se todo o resto
 #     falhar, a banda recebe a arte no próximo giro;
@@ -16,10 +35,6 @@ name: Produzir artes
 #
 # Nada depende de computador ligado.
 on:
-  schedule:
-    # Horários deslocados de propósito: o GitHub atrasa ou engole execuções
-    # agendadas em minutos redondos, quando a fila dele está cheia.
-    - cron: '3,13,23,33,43,53 * * * *'
   # O Apps Script empurra por aqui: workflow_dispatch, abaixo.
   #
   # O repository_dispatch com o nome "produzir-artes" fica declarado e NINGUÉM o
