@@ -73,6 +73,11 @@ function doPost(e) {
         // foi o sistema e não a vontade sobre a arte.
         return json({ ok: true, resultado:
           refazerArtes(corpo.id, corpo.peca || '', corpo.manter_caminho === true) });
+      case 'limpar_base':
+        // Apaga TODOS os dados das bandas. Pede a palavra exata além da chave —
+        // ver limparBase, em 10_Painel.gs.
+        return json({ ok: true, resultado:
+          limparBase(corpo.chave, corpo.confirmacao) });
       case 'cancelar_programacao':
         // Cancela a programação inteira e tira as publicações dela da fila. Existe
         // para limpar inscrição de teste sem precisar abrir o painel.

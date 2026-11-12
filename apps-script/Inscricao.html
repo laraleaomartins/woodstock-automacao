@@ -73,6 +73,23 @@
     <div class="dica">Só o valor, em reais — pode escrever 20 ou 20,00. Deixando em
       branco, a arte sai sem a linha do couvert.</div>
 
+    <!-- Show de tributo é informação de divulgação, não detalhe: "tributo ao
+         Legião Urbana" diz ao público o que vai ouvir, e quem faz a arte precisa
+         disso escrito. Fica como pergunta de sim ou não, com o campo do nome
+         aparecendo só para quem responder sim — perguntar o nome a todo mundo
+         faria a maioria parar para entender um campo que não é dela. -->
+    <div class="confirma">
+      <input type="checkbox" id="querTributo">
+      <label for="querTributo" style="margin:0;font-weight:400">Seu show é
+        <b>tributo</b> a alguma outra banda?</label>
+    </div>
+
+    <div id="caixaTributo" class="oculto">
+      <label>Tributo a qual banda ou artista?</label>
+      <input type="text" id="tributo" placeholder="Ex.: Legião Urbana" maxlength="80">
+      <div class="dica">O nome vai aparecer na divulgação do show.</div>
+    </div>
+
     <div class="confirma">
       <input type="checkbox" id="querColab">
       <label for="querColab" style="margin:0;font-weight:400">Publicar como
@@ -232,6 +249,14 @@ ligarCampo('logo', 'rotLogo', 'prevLogo', 1);
 // A caixa dos perfis da colaboração só aparece se a banda pedir colaboração, e o
 // primeiro perfil já vem preenchido com o @ dela — que é o colaborador em quase
 // todos os casos. Quem quiser marcar mais alguém acrescenta.
+// O campo do nome só aparece para quem disse que é tributo.
+document.getElementById('querTributo').addEventListener('change', function(){
+  var caixa = document.getElementById('caixaTributo');
+  caixa.classList.toggle('oculto', !this.checked);
+  if (this.checked) document.getElementById('tributo').focus();
+  else document.getElementById('tributo').value = '';
+});
+
 document.getElementById('querColab').addEventListener('change', function(){
   var caixa = document.getElementById('caixaColab');
   caixa.classList.toggle('oculto', !this.checked);
@@ -267,6 +292,8 @@ document.getElementById('f').addEventListener('submit', function(ev){
       hora: document.getElementById('hora').value,
       instagram: document.getElementById('instagram').value,
       couvert: document.getElementById('couvert').value,
+      tributo: document.getElementById('querTributo').checked
+        ? document.getElementById('tributo').value : '',
       colabs: document.getElementById('querColab').checked
         ? [document.getElementById('colab1').value]
         : [],

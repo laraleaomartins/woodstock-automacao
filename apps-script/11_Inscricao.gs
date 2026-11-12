@@ -76,6 +76,7 @@ function normalizarInscricao(dados) {
     logoArquivo: dados.logo ? blobDeEnvio(dados.logo, 'logo') : null,
     juntar: dados.juntar === true,
     couvert: valorDeCouvert(dados.couvert),
+    tributo: nomeDoTributo(dados.tributo),
     colabs: perfisDeColaboracao(dados.colabs)
   };
 }
@@ -109,6 +110,17 @@ function valorDeCouvert(bruto) {
   // Sem centavos quando são zero: "R$15" é como a arte do kit escreve.
   return numero % 1 === 0 ? String(Math.round(numero))
     : numero.toFixed(2).replace('.', ',');
+}
+
+/**
+ * A banda homenageada, quando o show é tributo.
+ *
+ * Guardado como texto limpo e nada mais: o sistema não confere se a banda existe
+ * nem corrige o nome. Quem escreve é quem vai tocar, e inventar correção aqui
+ * daria "Legião Urbana" virando outra coisa sem ninguém pedir.
+ */
+function nomeDoTributo(bruto) {
+  return String(bruto == null ? '' : bruto).trim().slice(0, 80);
 }
 
 /**

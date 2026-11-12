@@ -170,6 +170,9 @@ function guardarArquivos(destino, d) {
   // adiante quando as artes ficam prontas, e os colaboradores só são usados depois
   // disso. Guardados em qualquer outro lugar, se perderiam no meio do caminho.
   saida.couvert = String(d.couvert == null ? '' : d.couvert);
+  // Tributo entra aqui pelo mesmo motivo do couvert: este pedaço é o único que o
+  // sistema carrega adiante, e guardado em outro lugar se perderia no caminho.
+  saida.tributo = String(d.tributo == null ? '' : d.tributo);
   saida.colabs = [].concat(d.colabs || []).slice(0, 3);
   return saida;
 }

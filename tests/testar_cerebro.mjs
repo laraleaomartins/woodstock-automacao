@@ -1072,6 +1072,42 @@ teste('Enxurrada de inscrições é segurada', (ctx) => {
   conferir(recusadas >= 5, recusadas + ' envios foram barrados depois do limite da hora');
 });
 
+teste('Limpar a base exige a palavra exata, e preserva a configuração', (ctx, estado) => {
+  // Esta é a única função do sistema que destrói trabalho sem recuperação. A chave
+  // sozinha protege contra estranhos, não contra um clique errado de quem TEM a
+  // chave — por isso a palavra exata.
+  const id = ctx.receberInscricao(inscricaoFalsa()).id;
+  const chave = estado.props.API_TOKEN;
+  conferir(ctx.linhas('PROGRAMACOES').length === 1, 'existe uma programação antes');
+
+  let erro = null;
+  try { ctx.limparBase(chave, 'apagar tudo'); } catch (e) { erro = e.message; }
+  conferir(erro !== null, 'a palavra errada é recusada: "' + erro + '"');
+  conferir(ctx.linhas('PROGRAMACOES').length === 1,
+    'e nada foi apagado por causa da recusa');
+
+  erro = null;
+  try { ctx.limparBase('chave-errada', 'APAGAR TUDO'); } catch (e) { erro = e.message; }
+  conferir(erro !== null, 'sem a chave também é recusado');
+  conferir(ctx.linhas('PROGRAMACOES').length === 1, 'e também não apagou nada');
+
+  const conta = ctx.limparBase(chave, 'APAGAR TUDO');
+  conferir(conta.programacoes === 1, 'com a palavra certa, apagou 1 programação');
+  conferir(ctx.linhas('PROGRAMACOES').length === 0, 'a aba das programações ficou vazia');
+  conferir(ctx.linhas('AGENDAMENTOS').length === 0, 'a das publicações também');
+
+  // O que NÃO pode sumir: sem a configuração o sistema para de funcionar, e limpar
+  // dados não é desinstalar.
+  conferir(estado.props.API_TOKEN === chave, 'a chave continua lá');
+  conferir(estado.props.PASTA_RAIZ_ID === 'pasta-raiz', 'a pasta raiz continua lá');
+  conferir(estado.abas.CONFIG.length > 1, 'a aba de configuração continua inteira');
+
+  // A limpeza se registra: a primeira linha do histórico novo diz que houve uma.
+  const log = ctx.linhas('LOGS');
+  conferir(log.length === 1 && log[0].Evento === 'BASE_LIMPA',
+    'e o histórico recomeça dizendo que a base foi limpa');
+});
+
 teste('No sistema de verdade, o motor de artes vem DESLIGADO', () => {
   // As outras baterias ligam o motor de propósito, para provar que ele continua
   // funcionando e poder ser religado um dia. Este teste confere a outra metade: que

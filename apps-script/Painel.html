@@ -701,6 +701,10 @@ function dadosDaBanda(p){
       copiavel: !!p.dataShow, vazio: !p.dataShow },
     { rotulo: 'Hora do show', valor: p.horaShow || '—',
       copiavel: !!p.horaShow, vazio: !p.horaShow },
+    // Vai no "copiar tudo" junto com o resto: quem faz a arte precisa do nome
+    // homenageado escrito, e é isso que o público lê para saber o que vai ouvir.
+    { rotulo: 'Tributo a', valor: p.tributo || 'não é tributo',
+      copiavel: !!p.tributo, vazio: !p.tributo },
     // Fora do "copiar tudo": a ficha inteira costuma ir para alguém de fora, e o
     // telefone de quem se inscreveu não precisa viajar junto. Copiado sozinho,
     // continua à mão — é só clicar no bloco.
@@ -733,7 +737,7 @@ function gruposDaBanda(p){
     return nomes.map(function(n){ return por[n]; }).filter(Boolean);
   };
   return [
-    { titulo: 'O show',   itens: pegar(['Data do show', 'Hora do show']) },
+    { titulo: 'O show',   itens: pegar(['Data do show', 'Hora do show', 'Tributo a']) },
     { titulo: 'Contato',  itens: pegar(['Banda', 'Telefone', 'Instagram']) },
     { titulo: 'Entrada',  itens: pegar(['Couvert', 'Colab']) },
     { titulo: 'Recebido', itens: pegar(['Fotos', 'Inscrita em']) }

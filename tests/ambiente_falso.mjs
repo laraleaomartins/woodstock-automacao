@@ -70,6 +70,12 @@ export function criarAmbiente() {
       getDataRange: () => faixa(1, 1, Math.max(celulas().length, 1), Math.max(largura(), 1)),
       getRange: (r, c, nr, nc) => faixa(r, c, nr, nc),
       getLastRow: () => celulas().length,
+      // Apagar linhas faltava no simulador, e só apareceu quando a limpeza da base
+      // foi escrita. A conta das posições é a da planilha de verdade: a primeira
+      // linha é a 1, não a 0.
+      deleteRows(aPartirDe, quantas) {
+        celulas().splice(aPartirDe - 1, quantas);
+      },
       getLastColumn: () => largura(),
       setFrozenRows() { return this; },
       setColumnWidth() { return this; }

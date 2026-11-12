@@ -64,6 +64,7 @@ function painelCarregar(chave) {
       // precisa conferir antes de aprovar, porque vão escritos na arte e na
       // publicação.
       couvert: String((artes.recebidos && artes.recebidos.couvert) || ''),
+      tributo: String((artes.recebidos && artes.recebidos.tributo) || ''),
       colabs: [].concat((artes.recebidos && artes.recebidos.colabs) || []),
       // Se a banda disse que são integrantes separados para juntar numa foto só.
       // Explica por que a arte saiu montada, e é dado que ela preencheu.
@@ -667,4 +668,67 @@ function painelCancelarPost(chave, postId) {
   gravarCampo(ABA.AGENDAMENTOS, post._linha, 'Situacao', SIT_POST.CANCELADO);
   registrar('INFO', post.ProgramacaoId, 'POST_CANCELADO', postId);
   return true;
+}
+
+
+/**
+ * Apaga TODOS os dados das bandas, para o sistema começar do zero.
+ *
+ * Isto não tem volta. Apaga as linhas das três abas e manda para a lixeira do
+ * Drive as pastas de cada show, com as fotos e os logos dentro.
+ *
+ * O que NÃO apaga, de propósito:
+ *   - a aba de configuração e as propriedades do script (tokens, endereços, a
+ *     pasta raiz). Sem elas o sistema para de funcionar, e limpar dados não é
+ *     desinstalar;
+ *   - as publicações que já saíram no Instagram. Nada aqui tira post do ar; isso
+ *     só se faz no aplicativo.
+ *
+ * A TRAVA: além da chave, é preciso mandar a palavra exata APAGAR TUDO. A chave
+ * sozinha protege contra estranhos, não contra um clique errado de quem tem a
+ * chave — e esta é a única função do sistema que destrói trabalho sem recuperação.
+ */
+function limparBase(chave, confirmacao) {
+  exigirChave(chave);
+  if (String(confirmacao) !== 'APAGAR TUDO') {
+    throw new Error('Para apagar tudo é preciso confirmar com a palavra exata. ' +
+      'Nada foi apagado.');
+  }
+
+  return comTrava('limparBase', function () {
+    var conta = { programacoes: 0, publicacoes: 0, logs: 0, pastas: 0, falhas: [] };
+
+    // As pastas ANTES das linhas: o caminho de cada pasta está guardado na linha,
+    // e apagando as linhas primeiro as pastas ficariam órfãs no Drive, sem ninguém
+    // saber a quem pertenciam.
+    linhas(ABA.PROGRAMACOES).forEach(function (p) {
+      conta.programacoes++;
+      if (!p.PastaId) return;
+      try {
+        DriveApp.getFolderById(p.PastaId).setTrashed(true);
+        conta.pastas++;
+      } catch (e) {
+        conta.falhas.push(String(p.ID));
+      }
+    });
+
+    conta.publicacoes = Math.max(linhas(ABA.AGENDAMENTOS).length, 0);
+    conta.logs = Math.max(linhas(ABA.LOGS).length, 0);
+
+    [ABA.PROGRAMACOES, ABA.AGENDAMENTOS, ABA.LOGS].forEach(function (nome) {
+      var planilha = aba(nome);
+      var ultima = planilha.getLastRow();
+      // A linha 1 é o cabeçalho e fica: sem ele, as leituras seguintes não sabem
+      // o nome de nenhuma coluna.
+      if (ultima > 1) planilha.deleteRows(2, ultima - 1);
+    });
+
+    // O registro de que a base foi limpa é a primeira linha do histórico novo.
+    registrar('AVISO', '', 'BASE_LIMPA',
+      conta.programacoes + ' programações, ' + conta.publicacoes + ' publicações e ' +
+      conta.logs + ' linhas de histórico apagadas; ' + conta.pastas +
+      ' pasta(s) foram para a lixeira do Drive.');
+
+    return conta;
+  });
 }
