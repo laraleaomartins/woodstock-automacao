@@ -165,12 +165,18 @@
 
   /* A pista de "copiar" só aparece quando o ponteiro chega perto. Fixa, ela seria
      a mesma fileira de botões de antes, só que menor. */
-  .dado .pista{position:absolute;right:9px;top:8px;font-size:9.5px;
-    letter-spacing:.8px;text-transform:uppercase;color:#6f6f6f;opacity:0;
-    transition:opacity .12s}
-  button.dado:hover .pista,button.dado:focus-visible .pista{opacity:1}
+  /* O ícone fica SEMPRE visível, discreto. Escondido até o ponteiro chegar, ele
+     não existe para quem usa no celular — onde não há ponteiro — e some para quem
+     só bate o olho na tela. */
+  .dado .pista{position:absolute;right:9px;top:8px;display:flex;color:#5f5f5f;
+    opacity:.75;transition:opacity .12s,color .12s}
+  button.dado:hover .pista,button.dado:focus-visible .pista{opacity:1;color:#c9c9c9}
   button.dado.copiado{border-color:#1a6b33;background:#102a19}
   button.dado.copiado .pista{opacity:1;color:#7ee29a}
+  /* No instante do "copiado", a palavra entra no lugar do ícone: o verde sozinho
+     diz que algo aconteceu, não o quê. */
+  .dado .pista.feito{font-size:9.5px;letter-spacing:.8px;text-transform:uppercase}
+  .dado .val{padding-right:20px}
 
   /* ---------- as fotos ----------
      Uma ação por foto: baixar. Eram quatro, e três serviam ao gerador de arte. */
@@ -337,6 +343,12 @@ function recado(texto, ms){
   el.textContent = texto; el.style.display = 'block';
   clearTimeout(el._t); el._t = setTimeout(function(){ el.style.display='none'; }, ms || 4000);
 }
+var ICONE_COPIAR =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<rect x="9" y="9" width="11" height="11" rx="2"></rect>' +
+  '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' +
+  '</svg>';
+
 function aspas(texto){ return '&#39;' + String(texto).replace(/'/g, '') + '&#39;'; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -587,7 +599,7 @@ function desenharProgramacoes(){
 
     var ficha =
       '<div class="secao fichaBanda">' +
-        '<div class="tituloSecao">Dados da banda' +
+        '<div class="tituloSecao">Dados da banda ou artista' +
           '<button class="b mini" onclick="copiarFicha(this,' + aspas(p.id) + ')">' +
           'Copiar tudo</button></div>' +
         grupos.map(function(g){
@@ -599,11 +611,15 @@ function desenharProgramacoes(){
                 '<span class="val">' + esc(d.valor) + '</span>';
               // Bloco sem resposta não é botão: não há o que copiar, e um alvo de
               // clique que não faz nada é pior que um pedaço de texto parado.
+              // TODO campo com resposta é copiável, inclusive os que ficam de fora
+              // do "copiar tudo": uma coisa é o que vai na ficha inteira, outra é
+              // poder pegar um dado sozinho. Campo sem resposta não vira botão —
+              // não há o que copiar.
               return d.copiavel
-                ? '<button class="dado" title="clique para copiar" ' +
+                ? '<button class="dado" title="copiar ' + esc(d.rotulo.toLowerCase()) + '" ' +
                   'onclick="copiarCampo(this,' + aspas(p.id) + ',' + aspas(d.rotulo) +
-                  ')">' + corpo + '<span class="pista">copiar</span></button>'
-                : '<div class="dado' + (d.vazio ? ' semValor' : '') + '">' + corpo + '</div>';
+                  ')">' + corpo + '<span class="pista">' + ICONE_COPIAR + '</span></button>'
+                : '<div class="dado semValor">' + corpo + '</div>';
             }).join('') + '</div></div>';
         }).join('') +
       '</div>';
@@ -669,20 +685,25 @@ function dadosDaBanda(p){
       copiavel: !!p.dataShow, vazio: !p.dataShow },
     { rotulo: 'Hora do show', valor: p.horaShow || '—',
       copiavel: !!p.horaShow, vazio: !p.horaShow },
+    // Fora do "copiar tudo": a ficha inteira costuma ir para alguém de fora, e o
+    // telefone de quem se inscreveu não precisa viajar junto. Copiado sozinho,
+    // continua à mão — é só clicar no bloco.
     { rotulo: 'Telefone', valor: p.telefone || 'não informado',
-      copiavel: !!p.telefone, vazio: !p.telefone },
+      copiavel: !!p.telefone, vazio: !p.telefone, foraDoTudo: true },
     { rotulo: 'Instagram', valor: p.instagram || 'não informado',
       copiavel: !!p.instagram, vazio: !p.instagram },
     { rotulo: 'Couvert', valor: p.couvert ? 'R$ ' + p.couvert : 'sem couvert (entrada franca)',
       copiavel: !!p.couvert, vazio: !p.couvert },
-    { rotulo: 'Coautor no post', valor: colab || 'não pediu colaboração',
+    { rotulo: 'Colab', valor: colab || 'não pediu colaboração',
       copiavel: !!colab, vazio: !colab },
+    // Estes dois descrevem o envio, não a banda: colados numa conversa não dizem
+    // nada a quem recebe. Continuam copiáveis um a um, para quando forem úteis.
     { rotulo: 'Fotos', valor: fotos + (fotos === 1 ? ' foto' : ' fotos') +
         (p.juntar ? ' · de integrantes separados' : '') +
         (p.temLogo ? ' · com logo' : ' · sem logo'),
-      copiavel: false, vazio: !fotos },
-    { rotulo: 'Inscrita em', valor: p.recebidoEm || '—', copiavel: false,
-      vazio: !p.recebidoEm }
+      copiavel: !!fotos, vazio: !fotos, foraDoTudo: true },
+    { rotulo: 'Inscrita em', valor: p.recebidoEm || '—',
+      copiavel: !!p.recebidoEm, vazio: !p.recebidoEm, foraDoTudo: true }
   ];
 }
 
@@ -698,14 +719,19 @@ function gruposDaBanda(p){
   return [
     { titulo: 'O show',   itens: pegar(['Data do show', 'Hora do show']) },
     { titulo: 'Contato',  itens: pegar(['Banda', 'Telefone', 'Instagram']) },
-    { titulo: 'Entrada',  itens: pegar(['Couvert', 'Coautor no post']) },
+    { titulo: 'Entrada',  itens: pegar(['Couvert', 'Colab']) },
     { titulo: 'Recebido', itens: pegar(['Fotos', 'Inscrita em']) }
   ].filter(function(g){ return g.itens.length; });
 }
 
 // O texto da ficha inteira, pronto para colar numa conversa.
 function fichaEmTexto(p){
+  // O "copiar tudo" deixa de fora o telefone e os dois campos que descrevem o
+  // envio. A ficha inteira costuma ir para alguém de fora: o telefone de quem se
+  // inscreveu não precisa viajar junto, e "4 fotos · com logo" não diz nada a quem
+  // recebe. Os três continuam copiáveis um a um, clicando no bloco.
   return dadosDaBanda(p)
+    .filter(function(d){ return !d.foraDoTudo; })
     .map(function(d){ return d.rotulo + ': ' + d.valor; })
     .join(String.fromCharCode(10));
 }
@@ -732,12 +758,17 @@ function copiarCampo(bloco, id, rotulo){
       return;
     }
     var pista = bloco.querySelector('.pista');
-    var antes = pista ? pista.textContent : '';
     bloco.classList.add('copiado');
-    if (pista) pista.textContent = 'copiado';
+    if (pista){
+      pista.classList.add('feito');
+      pista.textContent = 'copiado';
+    }
     setTimeout(function(){
       bloco.classList.remove('copiado');
-      if (pista) pista.textContent = antes;
+      if (pista){
+        pista.classList.remove('feito');
+        pista.innerHTML = ICONE_COPIAR;
+      }
     }, 1400);
   });
 }
