@@ -548,15 +548,41 @@ teste('Story vai sem legenda e com o tipo STORIES', (ctx, estado) => {
 // arquivo, um teste com texto dentro estaria exercitando um caminho que a vida real
 // nao percorre.
 const CABECALHO = {
-  'image/png':  [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
-  'image/jpeg': [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46],
   'image/webp': [0x52, 0x49, 0x46, 0x46, 0x20, 0, 0, 0, 0x57, 0x45, 0x42, 0x50],
   'image/heic': [0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]
 };
 
-const bytesDe = (tipo, enchimento = 'conteudo') =>
-  Buffer.concat([Buffer.from(CABECALHO[tipo] || CABECALHO['image/jpeg']),
-                 Buffer.from(enchimento)]).toString('base64');
+// Um PNG com a MEDIDA escrita no cabeçalho, como PNG de verdade tem. Sem isso não
+// havia o que medir, e os testes de tamanho estariam conferindo o nada.
+const pngDe = (largura, altura) => {
+  const b = Buffer.alloc(33);
+  Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]).copy(b, 0);
+  b.writeUInt32BE(13, 8);                 // tamanho do bloco IHDR
+  Buffer.from('IHDR').copy(b, 12);
+  b.writeUInt32BE(largura, 16);
+  b.writeUInt32BE(altura, 20);
+  return b;
+};
+
+// Um JPEG mínimo: o trecho que descreve a imagem vem depois de outro de tamanho
+// variável, de propósito — é assim num arquivo de câmera, e é o caso que a leitura
+// precisa atravessar para achar a medida.
+const jpegDe = (largura, altura) => {
+  const antes = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10,
+    0x4A, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0]);
+  const sof = Buffer.alloc(11);
+  sof.writeUInt8(0xFF, 0); sof.writeUInt8(0xC0, 1);
+  sof.writeUInt16BE(11, 2); sof.writeUInt8(8, 4);
+  sof.writeUInt16BE(altura, 5); sof.writeUInt16BE(largura, 7);
+  return Buffer.concat([antes, sof, Buffer.from([0xFF, 0xDA])]);
+};
+
+const bytesDe = (tipo, enchimento = 'conteudo') => {
+  if (tipo === 'image/png') return Buffer.concat([pngDe(1200, 1600), Buffer.from(enchimento)]).toString('base64');
+  if (tipo === 'image/jpeg') return Buffer.concat([jpegDe(1200, 1600), Buffer.from(enchimento)]).toString('base64');
+  return Buffer.concat([Buffer.from(CABECALHO[tipo] || CABECALHO['image/webp']),
+                        Buffer.from(enchimento)]).toString('base64');
+};
 
 const imagemFalsa = (nome, tipo = 'image/jpeg') => ({
   nome, tipo, conteudo: bytesDe(tipo, 'conteudo-de-' + nome)
@@ -961,6 +987,63 @@ teste('Trocar a foto pelo painel também julga o arquivo', (ctx, estado) => {
   const antes = ctx.painelFotos(chave, id);
   conferir(antes[0].usando === 'original',
     'e a foto da banda continua sendo a que vale');
+});
+
+teste('O tamanho em pixels é lido do arquivo, e os limites valem no servidor', (ctx, estado) => {
+  // O defeito que isto guarda: o mínimo de 600 pixels estava escrito no servidor e
+  // NINGUÉM o usava — a conferência acontecia só no navegador, então uma troca feita
+  // fora da tela passava por cima dela. Regra escrita que não funciona é pior que
+  // regra nenhuma, porque quem lê o código acredita nela.
+  const id = ctx.receberInscricao(inscricaoFalsa()).id;
+  const chave = estado.props.API_TOKEN;
+
+  conferir(ctx.medidasDaImagem(ctx.Utilities.base64Decode(bytesDe('image/png'))).largura === 1200,
+    'a medida de um PNG é lida do cabeçalho');
+  const jp = ctx.medidasDaImagem(ctx.Utilities.base64Decode(bytesDe('image/jpeg')));
+  conferir(jp && jp.largura === 1200 && jp.altura === 1600,
+    'e a de um JPEG também, atravessando os trechos que vêm antes');
+
+  let erro = null;
+  try {
+    ctx.painelSubstituirFoto(chave, id, 0, {
+      nome: 'miudinha.png', tipo: 'image/png',
+      conteudo: Buffer.concat([pngDe(320, 240), Buffer.from('x')]).toString('base64')
+    });
+  } catch (e) { erro = e.message; }
+  conferir(erro !== null && /320×240/.test(erro),
+    'foto pequena foi recusada no painel, com a medida no recado: "' + erro + '"');
+
+  erro = null;
+  try {
+    ctx.painelSubstituirFoto(chave, id, 0, {
+      nome: 'gigante.png', tipo: 'image/png',
+      conteudo: Buffer.concat([pngDe(20000, 20000), Buffer.from('x')]).toString('base64')
+    });
+  } catch (e) { erro = e.message; }
+  conferir(erro !== null && /grande demais/i.test(erro),
+    'imagem absurda foi recusada antes de derrubar a oficina');
+
+  const boa = ctx.painelSubstituirFoto(chave, id, 0, fotoEditada());
+  conferir(boa[0].usando === 'editada',
+    'e a troca de tamanho normal continua passando igual');
+});
+
+teste('A inscrição não passa a recusar foto pequena, de propósito', (ctx) => {
+  // A página aceita foto pequena hoje: ela sai borrada, e quem decide se dá para usar
+  // é quem aprova no painel. Passar a recusar aqui seria recusar o que funciona, e a
+  // banda ficaria SEM arte em vez de com uma arte ruim.
+  const r = ctx.receberInscricao(inscricaoFalsa({
+    fotos: [{ nome: 'pequena.png', tipo: 'image/png',
+              conteudo: Buffer.concat([pngDe(400, 500), Buffer.from('x')]).toString('base64') }]
+  }));
+  conferir(r.ok === true, 'foto pequena continua sendo aceita na inscrição');
+
+  const absurda = ctx.receberInscricao(inscricaoFalsa({
+    fotos: [{ nome: 'absurda.png', tipo: 'image/png',
+              conteudo: Buffer.concat([pngDe(20000, 20000), Buffer.from('x')]).toString('base64') }]
+  }));
+  conferir(absurda.ok === false,
+    'mas imagem absurda é recusada, que é o único teto do servidor aqui');
 });
 
 teste('Reenvio da mesma inscrição não duplica', (ctx) => {

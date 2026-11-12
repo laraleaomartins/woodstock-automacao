@@ -97,6 +97,125 @@ function ehHeic(bytes) {
          marca === 'heim' || marca === 'heis' || marca === 'mif1' || marca === 'msf1';
 }
 
+/**
+ * De que tamanho é esta imagem, em pixels?
+ *
+ * Lê a medida escrita no CABEÇALHO do arquivo. O Apps Script não abre imagem — não
+ * tem como desenhar nem decodificar nada —, mas não precisa: todo formato guarda a
+ * largura e a altura em bytes de posição conhecida, logo no começo. É daí que sai.
+ *
+ * Isso existe porque os dois limites de tamanho do sistema valiam só no navegador.
+ * O mínimo de 600 pixels do painel estava escrito aqui no servidor e nunca era usado
+ * por ninguém: um envio feito fora da página passava por cima dele. Regra escrita que
+ * não funciona é pior que regra nenhuma, porque quem lê o código acredita nela.
+ *
+ * Devolve {largura, altura}, ou null quando o formato não é um dos que dá para medir
+ * assim — e aí quem chama DEIXA PASSAR, em vez de recusar no escuro: não saber o
+ * tamanho não é motivo para recusar uma imagem que o resto do sistema abre.
+ */
+function medidasDaImagem(bytes) {
+  if (!bytes || bytes.length < 26) return null;
+  var u = function (i) { return bytes[i] & 255; };
+  var grande = function (i) {  // número de 4 bytes, mais significativo primeiro
+    return (u(i) << 24 | u(i + 1) << 16 | u(i + 2) << 8 | u(i + 3)) >>> 0;
+  };
+  var curtoBE = function (i) { return u(i) << 8 | u(i + 1); };
+  var curtoLE = function (i) { return u(i + 1) << 8 | u(i); };
+  var texto = function (de, ate) {
+    var t = '';
+    for (var j = de; j < ate; j++) t += String.fromCharCode(u(j));
+    return t;
+  };
+
+  var formato = formatoDaImagem(bytes);
+
+  if (formato === 'PNG') {
+    // A medida vive no primeiro bloco do arquivo, o IHDR, que é sempre o primeiro.
+    return { largura: grande(16), altura: grande(20) };
+  }
+
+  if (formato === 'GIF') {
+    return { largura: curtoLE(6), altura: curtoLE(8) };
+  }
+
+  if (formato === 'BMP') {
+    // A altura vem negativa quando a imagem é guardada de cima para baixo.
+    var alt = (u(25) << 24 | u(24) << 16 | u(23) << 8 | u(22));
+    return { largura: (u(21) << 24 | u(20) << 16 | u(19) << 8 | u(18)),
+             altura: Math.abs(alt) };
+  }
+
+  if (formato === 'WEBP') {
+    var tipoWebp = texto(12, 16);
+    if (tipoWebp === 'VP8 ' && bytes.length > 30) {
+      return { largura: curtoLE(26) & 0x3FFF, altura: curtoLE(28) & 0x3FFF };
+    }
+    if (tipoWebp === 'VP8L' && bytes.length > 25) {
+      var bits = u(21) | u(22) << 8 | u(23) << 16 | u(24) << 24;
+      return { largura: (bits & 0x3FFF) + 1, altura: ((bits >> 14) & 0x3FFF) + 1 };
+    }
+    if (tipoWebp === 'VP8X' && bytes.length > 30) {
+      return { largura: (u(24) | u(25) << 8 | u(26) << 16) + 1,
+               altura: (u(27) | u(28) << 8 | u(29) << 16) + 1 };
+    }
+    return null;
+  }
+
+  if (formato === 'JPEG') {
+    // O JPEG é uma fila de trechos. A medida está no trecho que começa a descrever a
+    // imagem (um "SOF"), e antes dele vêm outros de tamanho variável — miniatura,
+    // perfil de cor, dados da câmera. Então é preciso andar de trecho em trecho.
+    var i = 2;
+    var voltas = 0;
+    while (i + 9 < bytes.length && voltas < 400) {
+      voltas++;
+      if (u(i) !== 0xFF) { i++; continue; }
+      var marca = u(i + 1);
+      if (marca === 0xFF) { i++; continue; }
+      // Trechos sem conteúdo, que não têm tamanho para pular.
+      if (marca === 0xD8 || marca === 0x01 || (marca >= 0xD0 && marca <= 0xD7)) {
+        i += 2;
+        continue;
+      }
+      if (marca === 0xDA || marca === 0xD9) break;   // começou a imagem; passou
+      var tamanho = curtoBE(i + 2);
+      if (tamanho < 2) break;
+      var ehSof = (marca >= 0xC0 && marca <= 0xCF) &&
+                  marca !== 0xC4 && marca !== 0xC8 && marca !== 0xCC;
+      if (ehSof) {
+        return { largura: curtoBE(i + 7), altura: curtoBE(i + 5) };
+      }
+      i += 2 + tamanho;
+    }
+    return null;
+  }
+
+  return null;   // TIFF e AVIF: não medidos aqui, e por isso deixados passar
+}
+
+/**
+ * A imagem é grande o bastante para render arte?
+ *
+ * Devolve o recado do problema, ou null quando está tudo bem. Quando não dá para
+ * medir o formato, devolve null também: deixar passar é o certo, porque o resto do
+ * sistema abre o arquivo e não saber o tamanho não é defeito dele.
+ */
+function problemaDeTamanho(nome, bytes, ladoMinimo, ladoMaximo) {
+  var m = medidasDaImagem(bytes);
+  if (!m || !m.largura || !m.altura) return null;
+  var menor = Math.min(m.largura, m.altura);
+  var maior = Math.max(m.largura, m.altura);
+  if (ladoMinimo && menor < ladoMinimo) {
+    return 'A imagem ' + nome + ' tem ' + m.largura + '×' + m.altura + ' pixels. ' +
+      'Abaixo de ' + ladoMinimo + ' no lado menor ela sai borrada na arte.';
+  }
+  if (ladoMaximo && maior > ladoMaximo) {
+    return 'A imagem ' + nome + ' tem ' + m.largura + '×' + m.altura + ' pixels, ' +
+      'que é grande demais para o sistema trabalhar. Reduza antes de enviar.';
+  }
+  return null;
+}
+
 /** O recado para quem mandou um arquivo que não dá para usar. */
 function recusaDeImagem(nome, bytes) {
   if (ehHeic(bytes)) {

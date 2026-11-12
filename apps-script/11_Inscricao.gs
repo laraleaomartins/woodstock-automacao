@@ -11,7 +11,16 @@
  */
 
 var MAX_INSCRICOES_POR_HORA = 20;
+
+// O tamanho para o qual a PÁGINA encolhe a foto antes de enviar. Não é uma recusa:
+// foto maior que isso é reduzida no navegador, e sobe reduzida.
 var LADO_MAXIMO_FOTO = 2400;
+
+// O teto que o SERVIDOR recusa, e que existe só para envio feito fora da página.
+// Nenhum celular produz imagem desse tamanho — o maior lado de uma foto de celular
+// de hoje fica perto de 4 mil pixels, e a página ainda encolhe para 2400 antes de
+// mandar. Serve para uma imagem gigante não derrubar a oficina por falta de memória.
+var LADO_MAXIMO_ABSURDO = 12000;
 
 function paginaDeInscricao() {
   var html = HtmlService.createHtmlOutputFromFile('Inscricao').getContent()
@@ -145,6 +154,16 @@ function blobDeEnvio(arquivo, nomePadrao) {
   if (!formatoDaImagem(bytes)) {
     throw new Error(recusaDeImagem(nome, bytes));
   }
+  // De propósito, a inscrição NÃO ganha um mínimo de tamanho. A página aceita foto
+  // pequena hoje: ela sai borrada na arte, e quem decide se dá para usar é quem
+  // aprova, no painel. Passar a recusar aqui seria recusar o que hoje funciona, e a
+  // banda ficaria sem nenhuma arte em vez de uma arte ruim.
+  //
+  // O limite de 2400 da página também não é uma recusa: ali ele ENCOLHE a foto. Então
+  // o único teto escrito aqui é o absurdo, que nenhum celular alcança e que serve de
+  // guarda contra envio feito fora da página.
+  var grandeDemais = problemaDeTamanho(nome, bytes, 0, LADO_MAXIMO_ABSURDO);
+  if (grandeDemais) throw new Error(grandeDemais);
   return Utilities.newBlob(bytes, tipo, nome.slice(0, 80));
 }
 

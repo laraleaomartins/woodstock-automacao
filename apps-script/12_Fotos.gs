@@ -202,9 +202,15 @@ function painelSubstituirFoto(chave, id, indice, arquivo) {
   // A mesma conferência da inscrição, pela mesma função: aqui a porta é sua, mas o
   // arquivo vem de fora do sistema do mesmo jeito, e um HEIC trocado à mão quebraria
   // a produção igual.
+  var nomeEnviado = String(arquivo.nome || 'enviado');
   if (!formatoDaImagem(bytes)) {
-    throw new Error(recusaDeImagem(String(arquivo.nome || 'enviado'), bytes));
+    throw new Error(recusaDeImagem(nomeEnviado, bytes));
   }
+  // O LADO_MINIMO_EDITADA acima existia escrito e NINGUÉM o usava: a conferência dos
+  // 600 pixels acontecia só no navegador, e uma troca feita fora da tela passava por
+  // cima dela. Para quem usa o painel nada muda — o navegador já barra antes de subir.
+  var pequena = problemaDeTamanho(nomeEnviado, bytes, LADO_MINIMO_EDITADA, LADO_MAXIMO_ABSURDO);
+  if (pequena) throw new Error(pequena);
 
   var ext = tipo.indexOf('png') >= 0 ? '.png' : '.jpg';
   var nome = 'foto' + (i + 1) + '_editada_' + fmt(new Date(), 'yyyyMMdd_HHmmss') + ext;
