@@ -156,21 +156,30 @@ function painelPreviasDaProgramacao(chave, id) {
   var prog = acharProgramacao(id);
   if (!prog) throw new Error('Programação não encontrada.');
 
-  return (recebidosDe(prog).fotos || []).map(function (foto, i) {
-    var usar = foto.manual && foto.manual.id ? foto.manual : foto;
-    var saida = { indice: i, dados: '', erro: '' };
-    if (!usar || !usar.id) {
+  var previa = function (indice, idArquivo) {
+    var saida = { indice: indice, dados: '', erro: '' };
+    if (!idArquivo) {
       saida.erro = 'sem arquivo';
       return saida;
     }
     try {
-      saida.dados = previaDeArquivo(usar.id);
+      saida.dados = previaDeArquivo(idArquivo);
       if (!saida.dados) saida.erro = 'não consegui montar a prévia';
     } catch (e) {
       saida.erro = 'não consegui abrir o arquivo';
     }
     return saida;
+  };
+
+  var lista = (recebidosDe(prog).fotos || []).map(function (foto, i) {
+    var usar = foto.manual && foto.manual.id ? foto.manual : foto;
+    return previa(i, usar && usar.id);
   });
+
+  // O logo vai na mesma viagem, com o índice que o marca como fora da lista.
+  var logo = logoDaProgramacao(prog);
+  if (logo) lista.push(previa(INDICE_DO_LOGO, logo.id));
+  return lista;
 }
 
 /**
@@ -232,6 +241,24 @@ function previaDeArquivo(idArquivo, lado) {
     Utilities.base64Encode(blob.getBytes());
 }
 
+/**
+ * O logo que a banda mandou, se mandou.
+ *
+ * Ele é guardado FORA da lista de fotos, num campo próprio — por isso o painel
+ * nunca o mostrava e ele não entrava no "baixar todas". Para quem faz a arte, o
+ * logo é tão necessário quanto as fotos: é ele que leva o nome da banda desenhado.
+ *
+ * O índice -1 o identifica nas funções que trabalham por índice. Não é número de
+ * posição na lista: é a marca de "este não está na lista".
+ */
+var INDICE_DO_LOGO = -1;
+
+function logoDaProgramacao(prog) {
+  var logo = recebidosDe(prog).logo;
+  if (!logo || !logo.id) return null;
+  return { id: String(logo.id), nome: String(logo.nome || 'logo') };
+}
+
 function painelFotos(chave, id) {
   exigirChave(chave);
   var prog = acharProgramacao(id);
@@ -250,10 +277,15 @@ function painelBaixarFoto(chave, id, indice, qual) {
   var prog = acharProgramacao(id);
   if (!prog) throw new Error('Programação não encontrada.');
 
-  var foto = (recebidosDe(prog).fotos || [])[Number(indice)];
-  if (!foto) throw new Error('Foto não encontrada nesta programação.');
-
-  var alvo = (qual === 'editada' && foto.manual) ? foto.manual : foto;
+  var alvo;
+  if (qual === 'logo' || Number(indice) === INDICE_DO_LOGO) {
+    alvo = logoDaProgramacao(prog);
+    if (!alvo) throw new Error('Esta banda não mandou logo.');
+  } else {
+    var foto = (recebidosDe(prog).fotos || [])[Number(indice)];
+    if (!foto) throw new Error('Foto não encontrada nesta programação.');
+    alvo = (qual === 'editada' && foto.manual) ? foto.manual : foto;
+  }
   var arq = DriveApp.getFileById(alvo.id);
   var blob = arq.getBlob();
   return {
@@ -284,7 +316,20 @@ function painelBaixarFotosTodas(chave, id) {
       }
     });
   });
-  if (!arquivos.length) throw new Error('Não consegui baixar nenhuma foto.');
+  // O logo vai junto. Quem baixa tudo vai fazer a arte, e sem o logo falta
+  // justamente a peça que leva o nome da banda desenhado.
+  var logo = logoDaProgramacao(prog);
+  if (logo) {
+    try {
+      var arqLogo = DriveApp.getFileById(logo.id);
+      var extLogo = (String(arqLogo.getName()).match(/\.[A-Za-z0-9]+$/) || ['.png'])[0];
+      arquivos.push(arqLogo.getBlob().setName('logo' + extLogo));
+    } catch (e) {
+      falhas.push('logo');
+    }
+  }
+
+  if (!arquivos.length) throw new Error('Não consegui baixar nenhum arquivo.');
 
   var zip = Utilities.zip(arquivos, id + '_fotos.zip');
   return {

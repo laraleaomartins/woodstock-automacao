@@ -69,6 +69,11 @@ function painelCarregar(chave) {
       // Explica por que a arte saiu montada, e é dado que ela preencheu.
       juntar: !!(artes.recebidos && artes.recebidos.juntar),
       temLogo: !!(artes.recebidos && artes.recebidos.logo),
+      // O logo é guardado fora da lista de fotos, e por isso nunca aparecia no
+      // painel nem entrava no "baixar todas". Para quem faz a arte ele é tão
+      // necessário quanto as fotos: é o que leva o nome da banda desenhado.
+      logo: (artes.recebidos && artes.recebidos.logo)
+        ? { nome: String(artes.recebidos.logo.nome || 'logo') } : null,
       // As fotos que a banda enviou, cada uma com o seu estado. O painel precisa
       // delas junto com o resto para poder mostrar a foto ao lado do problema que
       // ela teve, em vez de um recado geral.

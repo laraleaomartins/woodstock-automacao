@@ -189,6 +189,13 @@
   .foto .nome{flex:1;min-width:0;font-size:11px;color:var(--fraco);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .foto figcaption .b{flex:0 0 auto}
+  /* O logo quase sempre é um PNG transparente, e sobre o fundo preto do cartão ele
+     some. Fundo claro atrás, e sem cortar: logo cortada não serve para nada. */
+  .foto.ehLogo{position:relative}
+  .foto.ehLogo img{object-fit:contain;background:#e9e9e9;padding:10px}
+  .foto .selo{position:absolute;left:7px;top:7px;z-index:1;font-size:9.5px;
+    letter-spacing:1px;text-transform:uppercase;background:rgba(0,0,0,.72);
+    color:#f0f0f0;border-radius:5px;padding:3px 7px}
 
   @media (max-width: 640px){
     .blocos{grid-template-columns:1fr 1fr}
@@ -552,17 +559,26 @@ function desenharProgramacoes(){
     // O selo do tratamento também saiu pelo mesmo motivo: "processada" e "resultado
     // duvidoso" eram o laudo do recorte automático, e laudo de um trabalho que não
     // acontece mais só confunde quem lê.
-    var fotos = (p.fotos || []).length ?
-      '<div class="secao"><div class="tituloSecao">Fotos enviadas' +
+    // O logo entra na galeria como os outros arquivos, com o índice -1 que o marca
+    // como "fora da lista de fotos" — é assim que ele é guardado.
+    var enviados = (p.fotos || []).map(function(f){
+      return { indice: f.indice, nome: f.nome, rotulo: '' };
+    });
+    if (p.logo) enviados.push({ indice: -1, nome: p.logo.nome, rotulo: 'logo' });
+
+    var fotos = enviados.length ?
+      '<div class="secao"><div class="tituloSecao">Arquivos enviados' +
         '<span class="conta">' + p.fotos.length +
-        (p.fotos.length === 1 ? ' foto' : ' fotos') + '</span></div>' +
+        (p.fotos.length === 1 ? ' foto' : ' fotos') +
+        (p.logo ? ' + logo' : ' · sem logo') + '</span></div>' +
       '<div class="fotos">' +
-      p.fotos.map(function(f){
+      enviados.map(function(f){
         // A imagem não vem de um endereço do Drive: aquele endereço só responde a
         // quem tem a sessão do Google, e o navegador não a manda para fora da
         // moldura isolada onde o painel roda — era o quadrado de imagem quebrada.
         // Quem busca é o próprio sistema. Ver painelPreviasDaProgramacao.
-        return '<figure class="foto">' +
+        return '<figure class="foto' + (f.rotulo ? ' ehLogo' : '') + '">' +
+          (f.rotulo ? '<span class="selo">' + esc(f.rotulo) + '</span>' : '') +
           '<img data-prev="' + p.id + '|' + f.indice + '|original" alt="' +
             esc(f.nome) + '">' +
           '<figcaption>' +
@@ -627,7 +643,7 @@ function desenharProgramacoes(){
     var acoesFinais = [];
     if ((p.fotos || []).length){
       acoesFinais.push('<button class="b forte" onclick="baixarFotosTodas(this,' +
-        aspas(p.id) + ')">Baixar todas as fotos</button>');
+        aspas(p.id) + ')">Baixar tudo' + (p.logo ? ' (fotos e logo)' : '') + '</button>');
     }
     if (p.pastaUrl){
       acoesFinais.push('<a class="b" href="' + esc(p.pastaUrl) + '" target="_blank">' +
@@ -996,7 +1012,7 @@ function baixarFoto(botao, id, indice){
 function baixarFotosTodas(botao, id){
   if (botao){ botao.disabled = true; botao.textContent = 'juntando…'; }
   var soltar = function(){
-    if (botao){ botao.disabled = false; botao.textContent = 'Baixar todas as fotos'; }
+    if (botao){ botao.disabled = false; botao.textContent = 'Baixar tudo'; }
   };
   recado('Juntando as fotos…', 25000);
   google.script.run
