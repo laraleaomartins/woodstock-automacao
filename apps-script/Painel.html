@@ -48,6 +48,94 @@
   .foto .nome{font-size:11px;color:var(--fraco);word-break:break-all}
   .foto .estado{font-size:10px;letter-spacing:.5px;text-transform:uppercase;
     border-radius:4px;padding:2px 6px;align-self:flex-start}
+  /* ---------- a faixa de próximo passo ----------
+     Diz em que pé o show está e o que fazer agora. A cor é o tom, não enfeite:
+     azul é espera, amarelo pede você, vermelho é problema, verde é resolvido. */
+  .passo{margin-top:10px;padding:9px 12px;border-radius:8px;font-size:13.5px;
+    border:1px solid transparent;line-height:1.45}
+  .passo.t-espera{background:#0f2030;border-color:#1b4e7a;color:#a8cdf0}
+  .passo.t-voce{background:#332500;border-color:#7a5c00;color:#ffd96b}
+  .passo.t-erro{background:#2e0c0f;border-color:#7a1a20;color:#ffa8ae}
+  .passo.t-ok{background:#0d2416;border-color:#1a6b33;color:#8fe0ab}
+  .passo.t-fim{background:#1e1e1e;border-color:var(--borda);color:var(--fraco)}
+
+  /* ---------- erro e avisos ----------
+     Os avisos vinham emendados num parágrafo só, separados por barra: seis frases
+     longas grudadas, que ninguém lê. Agora cada um é um item. */
+  .erroCaixa{margin-top:10px;padding:9px 12px;border-radius:8px;font-size:13px;
+    background:#2e0c0f;border:1px solid #7a1a20;color:#ffa8ae}
+  .avisos{margin-top:10px;padding:9px 12px 10px;border-radius:8px;font-size:13px;
+    background:#241a00;border:1px solid #6b5200;color:#f0d388}
+  .avisos .tituloAviso{font-weight:700;margin-bottom:5px}
+  .avisos ul{margin:0;padding-left:18px}
+  .avisos li{margin:3px 0;line-height:1.45}
+
+  /* ---------- seções dentro do cartão ----------
+     Fotos e artes passam a ser blocos com título, em vez de duas galerias soltas
+     uma embaixo da outra sem separação. */
+  .secao{margin-top:14px;border:1px solid var(--borda);border-radius:10px;
+    background:#141414;overflow:hidden}
+  .tituloSecao{display:flex;align-items:center;gap:8px;padding:9px 12px;
+    font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--fraco);
+    border-bottom:1px solid var(--borda)}
+  .tituloSecao .conta{margin-left:auto;text-transform:none;letter-spacing:0;
+    font-size:12px}
+  .secao .artes,.secao .fotos{margin:0;padding:12px}
+  .rodapeSecao{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+    padding:10px 12px;border-top:1px solid var(--borda);background:#111}
+  .rodapeSecao .explica{flex:1 1 320px;margin:0;font-size:12.5px;color:var(--fraco);
+    line-height:1.45}
+
+  /* ---------- as ações, em três pesos ----------
+     Antes era uma fileira única de até dez botões iguais, com aprovar do lado de
+     cancelar tudo. A ação que conclui o trabalho e a que o desfaz tinham o mesmo
+     peso visual. */
+  .acoesCartao{margin-top:14px;border-top:1px solid var(--borda);padding-top:12px;
+    display:flex;flex-direction:column;gap:9px}
+  .acoes.principal .b{font-size:15px;padding:10px 18px}
+  .acoes.apoio{align-items:center}
+  .acoes.apoio .b{background:#1e1e1e;color:var(--texto)}
+  .acoes.perigo{margin-top:2px}
+  /* Link que é botão tem de parecer botão: sem sublinhado e com a mesma caixa. */
+  .acoes a.b{text-decoration:none;display:inline-flex;align-items:center}
+  /* As artes têm formatos diferentes (feed é mais quadrado, story é mais alto), e
+     alinhadas pelo topo a fileira ficava serrilhada. Altura igual para todas, e a
+     largura acompanha: cada uma continua com a sua proporção. */
+  .artes figure{width:auto}
+  .artes img{width:auto;height:150px;max-width:140px;object-fit:contain}
+  .artes .escolher{display:flex;align-items:center;gap:5px;font-size:11px;
+    color:var(--fraco);margin-bottom:4px}
+  .b.risco{background:transparent;border-color:#7a1a20;color:#ff8d95}
+  .b.risco:hover{background:#2e0c0f}
+  .b:disabled{opacity:.45;cursor:not-allowed}
+  .escolhaModo{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+    color:var(--fraco)}
+  .escolhaModo select{background:var(--cinza);color:var(--texto);
+    border:1px solid var(--borda);border-radius:7px;padding:6px 8px;font-size:13px}
+
+  /* ---------- telas pequenas ----------
+     No celular a fileira de botões virava uma coluna de botões estreitos, cada um
+     do tamanho do seu texto. Aqui a ação principal ocupa a largura toda, que é o
+     alvo mais fácil de acertar com o polegar. */
+  @media (max-width: 640px){
+    body{padding:12px;padding-bottom:70px}
+    .cartao{padding:12px}
+    .linha{align-items:flex-start}
+    .passo{font-size:13px}
+    .acoes.principal{flex-direction:column;align-items:stretch}
+    .acoes.principal .b{width:100%;text-align:center}
+    .rodapeSecao .b{width:100%}
+    .foto{width:100%}
+    .foto img{height:180px}
+    .ficha{grid-template-columns:1fr}
+    .ficha .rot{flex-basis:110px}
+    .filtros{flex-direction:column;align-items:stretch}
+    .grupoFiltro{width:100%}
+  }
+  @media (min-width: 641px) and (max-width: 1024px){
+    .foto{width:calc(50% - 5px)}
+    .foto img{height:150px}
+  }
   .fichaBox{margin-top:12px;border:1px solid var(--borda);border-radius:10px;
     background:#121212}
   .fichaBox summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--fraco);
@@ -175,15 +263,205 @@ function recado(texto, ms){
   el.textContent = texto; el.style.display = 'block';
   clearTimeout(el._t); el._t = setTimeout(function(){ el.style.display='none'; }, ms || 4000);
 }
+function aspas(texto){ return '&#39;' + String(texto).replace(/'/g, '') + '&#39;'; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
-function chamar(fn, args, aoTerminar){
+// ------------------------------------------------- em que pé está cada show
+
+// A situação em palavras, e não no nome interno. "AGUARDANDO_APROVACAO" é como o
+// sistema guarda; quem opera lê "esperando você aprovar".
+var SITUACAO_EM_PALAVRAS = {
+  AGUARDANDO_ARTES: 'na fila',
+  GERANDO_ARTES: 'fazendo as artes',
+  AGUARDANDO_APROVACAO: 'esperando você',
+  APROVADA: 'aprovada',
+  AGENDADA: 'agendada',
+  PUBLICADO: 'publicada',
+  CONCLUIDA: 'concluída',
+  PAUSADA: 'pausada',
+  REPROVADA: 'reprovada',
+  ERRO_ARTES: 'deu erro',
+  CANCELADA: 'cancelada'
+};
+
+/**
+ * A faixa de próximo passo: onde este show está e o que fazer agora.
+ *
+ * Existe porque o painel mostrava a situação como uma etiqueta e mais nada. Quem
+ * nunca usou o sistema olhava "GERANDO_ARTES" e não sabia se devia esperar, clicar
+ * em algo ou se tinha travado — e, numa vez em que travou de verdade, foi
+ * exatamente essa a dúvida.
+ *
+ * Devolve o texto e o tom. A ação principal fica ao lado, montada por quem chama.
+ */
+function proximoPasso(p){
+  var s = p.situacao;
+
+  if (s === 'AGUARDANDO_ARTES'){
+    return { tom: 'espera', texto: 'Na fila para gerar as artes. ' +
+      'A oficina pega os pedidos de dez em dez minutos.' };
+  }
+  if (s === 'GERANDO_ARTES'){
+    return { tom: 'espera', texto: 'Fazendo as artes agora. ' +
+      'Leva uns quatro minutos; a tela se atualiza quando você recarregar.' };
+  }
+  if (s === 'AGUARDANDO_APROVACAO'){
+    var n = contarPecas(p);
+    return { tom: 'voce', texto: 'Esperando você. Confira as ' + n +
+      ' artes abaixo, desmarque as que não quiser publicar e aprove.' };
+  }
+  if (s === 'ERRO_ARTES'){
+    return { tom: 'erro', texto: 'A produção não conseguiu gerar as artes. ' +
+      'Veja o motivo abaixo: quase sempre é uma das fotos, e trocar aquela foto resolve.' };
+  }
+  if (s === 'REPROVADA'){
+    return { tom: 'erro', texto: 'Você reprovou estas artes. ' +
+      'Refaça para o sistema tentar outro caminho, ou troque a foto que ficou ruim.' };
+  }
+  if (s === 'APROVADA' || s === 'AGENDADA'){
+    return { tom: 'ok', texto: 'Aprovada. As publicações estão na fila e saem sozinhas ' +
+      'nos horários do calendário.' };
+  }
+  if (s === 'PAUSADA'){
+    return { tom: 'espera', texto: 'Pausada. Nada sai desta banda até você retomar.' };
+  }
+  if (s === 'CONCLUIDA'){
+    return { tom: 'ok', texto: 'Tudo que havia para publicar desta banda já saiu.' };
+  }
+  if (s === 'CANCELADA'){
+    return { tom: 'fim', texto: 'Cancelada. As publicações foram tiradas da fila.' };
+  }
+  return null;
+}
+
+/**
+ * Os avisos da produção, um por linha e sem o nome técnico da peça.
+ *
+ * Eles vinham grudados num parágrafo só, separados por barra: seis frases longas
+ * emendadas, misturando problema de foto com problema de arte. Ninguém lê isso. E
+ * "peça A" não quer dizer nada para quem não decorou os layouts.
+ */
+function avisosEmLista(p){
+  var bruto = String(p.avisos || '').trim();
+  if (!bruto) return '';
+
+  var itens = bruto.split('|').map(function(t){ return t.trim(); })
+                   .filter(function(t){ return t.length; })
+                   .map(function(t){
+                     return t.replace(/\bpeça A\b/g, 'arte da tarja')
+                             .replace(/\bpeça B\b/g, 'arte da coluna')
+                             .replace(/\bpeça C\b/g, 'arte da polaroide');
+                   });
+  if (!itens.length) return '';
+
+  return '<div class="avisos"><div class="tituloAviso">Confira antes de aprovar</div>' +
+    '<ul>' + itens.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') +
+    '</ul></div>';
+}
+
+// ------------------------------------------------- uma operação de cada vez
+
+// O que está em andamento agora, por banda e por tipo de operação.
+//
+// O defeito que isto guarda, medido no registro: um show recebeu OITO pedidos de
+// refazer em poucos minutos. Cada clique enfileirava uma produção nova, e a de
+// antes nem tinha terminado. Nada no painel dizia que já havia um pedido correndo,
+// e o botão continuava ali, convidativo, depois do clique.
+//
+// A trava é por banda e por operação: refazer as artes da banda A não impede
+// aprovar a banda B, e não impede nem mesmo cancelar a própria banda A.
+var emAndamento = {};
+
+function ocupado(chaveTrava){
+  return !!(chaveTrava && emAndamento[chaveTrava]);
+}
+
+/**
+ * Chama o sistema, com trava e com o botão desligado enquanto dura.
+ *
+ * `trava` é opcional. Quando vem, um segundo clique na mesma operação da mesma
+ * banda é recusado com um recado em vez de virar um segundo pedido — e o botão
+ * fica desligado, para o clique nem acontecer.
+ */
+function chamar(fn, args, aoTerminar, trava, botao){
+  if (ocupado(trava)){
+    recado('Isso já está sendo feito. Espere terminar.', 5000);
+    return;
+  }
+  if (trava) emAndamento[trava] = true;
+
+  var rotuloAntes = null;
+  if (botao){
+    rotuloAntes = botao.textContent;
+    botao.disabled = true;
+    botao.textContent = 'fazendo…';
+  }
+  var soltar = function(){
+    if (trava) delete emAndamento[trava];
+    if (botao){
+      botao.disabled = false;
+      if (rotuloAntes !== null) botao.textContent = rotuloAntes;
+    }
+  };
+
   recado('Processando…', 60000);
   google.script.run
-    .withSuccessHandler(function(r){ recado('Pronto.'); if(aoTerminar) aoTerminar(r); else carregar(); })
-    .withFailureHandler(function(e){ recado('Não deu certo: ' + e.message, 9000); })
+    .withSuccessHandler(function(r){
+      soltar();
+      recado('Pronto.');
+      if (aoTerminar) aoTerminar(r); else carregar();
+    })
+    .withFailureHandler(function(e){
+      soltar();
+      recado('Não deu certo: ' + e.message, 9000);
+    })
     [fn].apply(null, [CHAVE].concat(args || []));
+}
+
+// ------------------------------------------------- refazer as artes
+
+/**
+ * Refazer as artes de uma banda. UMA ação, para todas as peças.
+ *
+ * Antes havia um botão "refazer" em cada uma das seis artes, mais um "Refazer
+ * todas" embaixo: sete botões para uma operação só. E os seis individuais mentiam —
+ * clicar no de uma peça refazia as seis do mesmo jeito, porque as seis saem do
+ * mesmo tratamento das fotos e não existe refazer uma sem refazer o tratamento. A
+ * tela contradizia o próprio aviso que ela mostrava.
+ *
+ * Agora é um botão só, embaixo da galeria, com a frase que explica por quê.
+ */
+function refazerArtesDaBanda(botao, id){
+  var p = acharPrograma(id);
+  if (!p) return;
+
+  if (p.situacao === 'GERANDO_ARTES' || p.situacao === 'AGUARDANDO_ARTES'){
+    recado('As artes desta banda já estão sendo feitas agora. Espere terminar.', 6000);
+    return;
+  }
+
+  var quantas = contarPecas(p);
+  var texto = quantas
+    ? 'Refazer as ' + quantas + ' artes desta banda?\n\n' +
+      'Todas são refeitas juntas: as peças saem do mesmo tratamento das fotos, e não ' +
+      'existe refazer uma sem refazer o tratamento.\n\n' +
+      'Cada vez que você refaz, o sistema tenta um caminho DIFERENTE de tratamento. ' +
+      'As artes de agora são substituídas, e as publicações já agendadas saem da fila.'
+    : 'Tentar gerar as artes desta banda de novo?';
+  if (!confirm(texto)) return;
+
+  chamar('painelRefazer', [id, ''], null, 'refazer|' + id, botao);
+}
+
+function acharPrograma(id){
+  return ((dados && dados.programacoes) || []).filter(function(x){
+    return x.id === id;
+  })[0];
+}
+
+function contarPecas(p){
+  return Object.keys(p.feed || {}).length + Object.keys(p.story || {}).length;
 }
 
 function carregar(){
@@ -276,21 +554,64 @@ function desenharProgramacoes(){
     // só ela fica de fora e as outras seguem. Fora da aprovação não há o que
     // marcar, e a galeria é só galeria.
     var escolher = p.situacao === 'AGUARDANDO_APROVACAO';
-    var galeria = pecas.length ? '<div class="artes">' + pecas.map(function(x){
-      return '<figure>' +
-             (escolher ? '<label class="escolher"><input type="checkbox" checked ' +
-                'data-prog="'+esc(p.id)+'" data-peca="'+esc(x.k)+'">publicar</label>' : '') +
-             '<a href="'+esc(x.u)+'" target="_blank"><img src="'+esc(x.u)+'" loading="lazy" alt="'+esc(x.t)+'"></a>' +
-             '<figcaption>'+esc(x.t)+'</figcaption>' +
-             '<button class="b mini refaz" title="refazer tentando outro tratamento" ' +
-               'onclick="refazerUma(\''+p.id+'\',\''+x.k+'\')">refazer</button>' +
-             '</figure>'; }).join('') + '</div>' : '';
+    var fazendo = p.situacao === 'GERANDO_ARTES' || p.situacao === 'AGUARDANDO_ARTES';
+
+    // A SEÇÃO DAS ARTES: as peças, e UMA ação para refazê-las.
+    //
+    // Antes havia um botão "refazer" em cada peça, mais um "Refazer todas" na
+    // fileira geral: sete botões para uma operação só. E os seis de dentro das peças
+    // mentiam — clicar no de uma refazia as seis, porque as peças saem do mesmo
+    // tratamento das fotos e não existe refazer uma sem refazer o tratamento. A tela
+    // contradizia o próprio aviso que ela mostrava, e convidava a clicar seis vezes.
+    var galeria = '';
+    if (pecas.length){
+      galeria =
+        '<div class="secao"><div class="tituloSecao">Artes geradas' +
+          '<span class="conta">' + pecas.length + ' peças</span></div>' +
+        '<div class="artes">' + pecas.map(function(x){
+          return '<figure>' +
+            (escolher ? '<label class="escolher"><input type="checkbox" checked ' +
+               'data-prog="' + esc(p.id) + '" data-peca="' + esc(x.k) + '">publicar</label>' : '') +
+            '<a href="' + esc(x.u) + '" target="_blank" title="abrir em tamanho cheio">' +
+              '<img src="' + esc(x.u) + '" loading="lazy" alt="' + esc(x.t) + '"></a>' +
+            '<figcaption>' + esc(x.t) + '</figcaption>' +
+            '</figure>';
+        }).join('') + '</div>' +
+        '<div class="rodapeSecao">' +
+          '<p class="explica">Todas as artes são refeitas juntas, porque as ' +
+            pecas.length + ' peças saem do mesmo tratamento das fotos. ' +
+            'Cada vez que você refaz, o sistema tenta um caminho diferente.</p>' +
+          '<button class="b" ' + (fazendo ? 'disabled title="as artes já estão sendo feitas agora"' : '') +
+            ' onclick="refazerArtesDaBanda(this,' + aspas(p.id) + ')">' +
+            'Refazer todas as artes</button>' +
+        '</div></div>';
+    } else if (['ERRO_ARTES', 'REPROVADA'].indexOf(p.situacao) >= 0){
+      // Sem nenhuma peça pronta não há galeria, mas ainda há o que fazer: tentar de
+      // novo. Sem este caminho, uma produção que falhou ficava sem saída na tela.
+      galeria =
+        '<div class="secao"><div class="tituloSecao">Artes geradas</div>' +
+        '<div class="rodapeSecao">' +
+          '<p class="explica">Nenhuma arte saiu desta vez. Tentar de novo faz o ' +
+            'sistema usar um caminho diferente de tratamento das fotos.</p>' +
+          '<button class="b forte" ' + (fazendo ? 'disabled' : '') +
+            ' onclick="refazerArtesDaBanda(this,' + aspas(p.id) + ')">' +
+            'Tentar gerar as artes de novo</button>' +
+        '</div></div>';
+    }
 
     // A galeria das FOTOS ENVIADAS, antes das artes. Cada uma com o que o
     // tratamento descobriu dela, e com o que dá para fazer: baixar a original,
     // mandar uma versão editada, ou desfazer a troca.
-    var fotos = (p.fotos || []).length ? '<div class="meta" style="margin-top:14px">' +
-      'Fotos enviadas pela banda</div><div class="fotos">' +
+    // A seção das FOTOS ENVIADAS vem antes das artes de propósito: quando uma arte
+    // sai ruim, é aqui que se descobre e se conserta qual foto é a culpada.
+    var comProblema = (p.fotos || []).filter(function(f){
+      return f.estado === 'erro' || f.estado === 'duvidoso';
+    }).length;
+    var fotos = (p.fotos || []).length ?
+      '<div class="secao"><div class="tituloSecao">Fotos enviadas pela banda' +
+        '<span class="conta">' + p.fotos.length +
+        (comProblema ? ' · ' + comProblema + ' a conferir' : '') + '</span></div>' +
+      '<div class="fotos">' +
       p.fotos.map(function(f){
         var rotulo = {ok:'processada', erro:'precisa de conserto',
                       duvidoso:'resultado duvidoso', editada:'editada por você',
@@ -314,29 +635,65 @@ function desenharProgramacoes(){
           '<button class="b mini" onclick="trocarFoto(\''+p.id+'\','+f.indice+')">substituir</button>' +
           (f.editada ? '<button class="b mini" onclick="desfazerFoto(\''+p.id+'\','+f.indice+')">desfazer</button>' : '') +
           '</div></div></div>';
-      }).join('') + '</div>' : '';
+      }).join('') + '</div></div>' : '';
 
-    var acoes = [];
+    // AS AÇÕES, em três grupos e nesta ordem: a principal do momento, as de apoio,
+    // e a destrutiva por último e separada.
+    //
+    // Antes era uma fileira única de até dez botões todos iguais, em que aprovar
+    // ficava do lado de cancelar tudo. Nada dizia qual era o próximo passo, e a ação
+    // que desfaz o trabalho tinha o mesmo peso visual da que o conclui.
+    var principal = [];
+    var apoio = [];
+    var perigo = [];
+
     if (p.situacao === 'AGUARDANDO_APROVACAO'){
-      acoes.push('<button class="b forte" onclick="aprovarMarcadas(\''+p.id+'\')">Aprovar as marcadas</button>');
-      acoes.push(bt('','Reprovar','reprovar',p.id));
+      principal.push('<button class="b forte" onclick="aprovarMarcadas(this,' +
+        aspas(p.id) + ')">Aprovar e publicar as marcadas</button>');
+      apoio.push('<button class="b" onclick="acao(this,' + aspas('reprovar') + ',' +
+        aspas(p.id) + ')">Reprovar</button>');
     }
-    if (['AGENDADA','APROVADA'].indexOf(p.situacao)>=0) acoes.push(bt('','Pausar','painelPausar',p.id));
-    if (p.situacao === 'PAUSADA') acoes.push(bt('','Retomar','painelRetomar',p.id));
-    if (pecas.length || ['ERRO_ARTES','REPROVADA'].indexOf(p.situacao)>=0) {
-      acoes.push('<button class="b" onclick="refazerTodas(\''+p.id+'\')">Refazer todas</button>');
+    if (['AGENDADA', 'APROVADA'].indexOf(p.situacao) >= 0){
+      principal.push('<button class="b" onclick="acao(this,' + aspas('painelPausar') +
+        ',' + aspas(p.id) + ')">Pausar as publicações</button>');
     }
-    if (Object.keys(p.feed).length || Object.keys(p.story).length) {
-      acoes.push(bt('','Recalcular horários','painelRecalcular',p.id));
-      acoes.push('<button class="b" onclick="verLegendas(\''+p.id+'\')">Ver legendas</button>');
+    if (p.situacao === 'PAUSADA'){
+      principal.push('<button class="b forte" onclick="acao(this,' +
+        aspas('painelRetomar') + ',' + aspas(p.id) + ')">Retomar as publicações</button>');
     }
-    acoes.push('<button class="b" onclick="mudarShow(\''+p.id+'\')">Mudar data/hora</button>');
-    acoes.push('<select onchange="chamar(\'painelDefinirModo\',[\''+p.id+'\',this.value])">' +
-      opt('', '(modo global)', p.modo) + opt('AUTOMATICO','automático',p.modo) +
-      opt('APROVACAO','com aprovação',p.modo) + '</select>');
-    if (['CANCELADA','CONCLUIDA'].indexOf(p.situacao)<0) acoes.push(bt('','Cancelar tudo','cancelar',p.id));
-    if (pecas.length) acoes.push('<button class="b" onclick="baixarTodas(\''+p.id+'\')">Baixar todas</button>');
-    if (p.pastaUrl) acoes.push('<a class="b" style="text-decoration:none;display:inline-block" href="'+esc(p.pastaUrl)+'" target="_blank">Arquivos no Drive</a>');
+
+    var temAgenda = Object.keys(p.feed || {}).length || Object.keys(p.story || {}).length;
+    if (temAgenda){
+      apoio.push('<button class="b" onclick="verLegendas(this,' + aspas(p.id) +
+        ')">Ver e editar legendas</button>');
+      apoio.push('<button class="b" onclick="acao(this,' + aspas('painelRecalcular') +
+        ',' + aspas(p.id) + ')">Recalcular horários</button>');
+    }
+    if (pecas.length){
+      apoio.push('<button class="b" onclick="baixarTodas(this,' + aspas(p.id) +
+        ')">Baixar as artes</button>');
+    }
+    apoio.push('<button class="b" onclick="mudarShow(this,' + aspas(p.id) +
+      ')">Mudar data ou hora</button>');
+    if (p.pastaUrl){
+      apoio.push('<a class="b" href="' + esc(p.pastaUrl) + '" target="_blank">' +
+        'Abrir no Drive</a>');
+    }
+
+    if (['CANCELADA', 'CONCLUIDA'].indexOf(p.situacao) < 0){
+      perigo.push('<button class="b risco" onclick="acao(this,' + aspas('cancelar') +
+        ',' + aspas(p.id) + ')">Cancelar este show</button>');
+    }
+
+    // O modo de publicação não é um botão: é uma escolha que fica valendo. Vai com
+    // rótulo, porque um seletor solto no meio de botões não diz o que escolhe.
+    var seletorModo =
+      '<label class="escolhaModo">Publicação: ' +
+      '<select onchange="trocarModo(this,' + aspas(p.id) + ')">' +
+      opt('', 'como no ajuste geral', p.modo) +
+      opt('AUTOMATICO', 'automática', p.modo) +
+      opt('APROVACAO', 'só depois de eu aprovar', p.modo) +
+      '</select></label>';
 
     // O CARTÃO DOS DADOS: tudo que a banda preencheu, num lugar só.
     //
@@ -368,15 +725,45 @@ function desenharProgramacoes(){
       '<button class="b" onclick="copiarFicha(this,\''+p.id+'\')">Copiar todos os dados</button>' +
       '</div></details>';
 
+    // O CARTÃO, montado de cima para baixo na ordem em que se lê:
+    //
+    //   1. quem é e quando — o cabeçalho;
+    //   2. em que pé está e o que fazer agora — a faixa de próximo passo;
+    //   3. o que deu errado, se deu;
+    //   4. o que a banda preencheu — fechado, porque é consulta e não leitura;
+    //   5. as fotos que ela mandou — é onde se conserta o que saiu ruim;
+    //   6. as artes e a única ação de refazê-las;
+    //   7. as ações: a principal, as de apoio, e por último a que cancela.
+    var passo = proximoPasso(p);
+    var situacaoLegivel = SITUACAO_EM_PALAVRAS[p.situacao] ||
+      String(p.situacao).replace(/_/g, ' ').toLowerCase();
+
     return '<div class="cartao">' +
-      '<div class="linha"><div><div class="banda">'+esc(p.banda)+'</div>' +
-      '<div class="meta">'+esc(p.dataShow)+' · '+esc(p.diaSemana)+' · '+esc(p.horaShow)+' · '+esc(p.instagram)+
-      ' · '+p.recebidos+' arquivo(s) recebido(s)</div>' +
-      (p.recebidoEm ? '<div class="meta">inscrita em '+esc(p.recebidoEm)+'</div>' : '') + '</div>' +
-      '<span class="etq e-'+esc(p.situacao)+'">'+esc(p.situacao.replace(/_/g,' '))+'</span></div>' +
-      (p.erro ? '<div class="meta" style="color:#ff8d95;margin-top:8px">'+esc(p.erro)+'</div>' : '') +
-      (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +
-      cartaoDados + fotos + galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
+      '<div class="linha">' +
+        '<div class="quem">' +
+          '<div class="banda">' + esc(p.banda) + '</div>' +
+          '<div class="meta">' + esc(p.dataShow) + ' · ' + esc((p.diaSemana || '').toLowerCase()) +
+            ' · ' + esc(p.horaShow) +
+            (p.instagram ? ' · ' + esc(p.instagram) : '') + '</div>' +
+        '</div>' +
+        '<span class="etq e-' + esc(p.situacao) + '">' + esc(situacaoLegivel) + '</span>' +
+      '</div>' +
+
+      (passo ? '<div class="passo t-' + passo.tom + '">' + esc(passo.texto) + '</div>' : '') +
+
+      // O erro vem ANTES de tudo que se possa fazer: é ele que explica por que a
+      // tela está como está.
+      (p.erro ? '<div class="erroCaixa"><b>O que impediu:</b> ' + esc(p.erro) + '</div>' : '') +
+      avisosEmLista(p) +
+
+      cartaoDados + fotos + galeria +
+
+      '<div class="acoesCartao">' +
+        (principal.length ? '<div class="acoes principal">' + principal.join('') + '</div>' : '') +
+        '<div class="acoes apoio">' + apoio.join('') + seletorModo + '</div>' +
+        (perigo.length ? '<div class="acoes perigo">' + perigo.join('') + '</div>' : '') +
+      '</div>' +
+      '</div>';
   }).join('');
 
   // As miniaturas vêm depois da tela, para a lista não esperar pelas imagens.
@@ -474,29 +861,82 @@ function baixarBase64(arquivo){
   setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
 }
 
-function aprovarMarcadas(id){
+
+/**
+ * As ações simples do cartão, todas por aqui.
+ *
+ * Todas recebem o botão que foi clicado: é ele que fica desligado enquanto a
+ * operação corre, para o mesmo pedido não sair duas vezes. Antes nenhuma recebia, e
+ * o botão continuava clicável durante a espera.
+ *
+ * As que não dão para desfazer pedem confirmação dizendo o que vai acontecer — e
+ * não só "tem certeza?", que não informa nada.
+ */
+function acao(botao, fn, id){
+  if (fn === 'reprovar'){
+    var m = prompt('O que está errado nas artes? Fica registrado, e ajuda a lembrar ' +
+                   'depois por que esta banda foi reprovada.');
+    if (m === null) return;
+    return chamar('painelReprovar', [id, m], null, 'aprovar|' + id, botao);
+  }
+  if (fn === 'cancelar'){
+    var p = acharPrograma(id);
+    var nome = p ? p.banda : 'esta banda';
+    if (!confirm('Cancelar o show de ' + nome + '?\n\n' +
+                 'As publicações que ainda não saíram são tiradas da fila. As que já ' +
+                 'foram publicadas continuam no Instagram — isso não as remove.')) return;
+    return chamar('painelCancelar', [id], null, 'cancelar|' + id, botao);
+  }
+  chamar(fn, [id], null, fn + '|' + id, botao);
+}
+
+function trocarModo(seletor, id){
+  seletor.disabled = true;
+  chamar('painelDefinirModo', [id, seletor.value], null, 'modo|' + id);
+}
+
+function mudarShow(botao, id){
+  var p = acharPrograma(id);
+  if (!p) return;
+  var d = prompt('Nova data do show (AAAA-MM-DD). Deixe como está para não mudar:',
+                 p.dataShowISO);
+  if (d === null) return;
+  var h = prompt('Novo horário do show (HH:MM):', p.horaShow);
+  if (h === null) return;
+  chamar('painelAlterarShow', [id, d, h], null, 'alterar|' + id, botao);
+}
+
+function aprovarMarcadas(botao, id){
   var marcadas = [].slice.call(
     document.querySelectorAll('input[type=checkbox][data-prog="' + id + '"]'));
   var escolhidas = marcadas.filter(function(c){ return c.checked; })
                            .map(function(c){ return c.getAttribute('data-peca'); });
   if (!escolhidas.length){
-    recado('Marque pelo menos uma peça para publicar, ou use Reprovar.', 6000);
+    recado('Marque pelo menos uma arte para publicar, ou use Reprovar.', 6000);
     return;
   }
   var fora = marcadas.length - escolhidas.length;
-  if (fora && !confirm(fora + ' peça(s) não vão ser publicadas. Continuar?')) return;
-  chamar('painelAprovar', [id, escolhidas]);
+  if (fora && !confirm(fora + ' arte(s) ficam de fora e não serão publicadas. ' +
+                       'As outras ' + escolhidas.length + ' entram na fila. Continuar?')) return;
+  chamar('painelAprovar', [id, escolhidas], null, 'aprovar|' + id, botao);
 }
 
-function baixarTodas(id){
+function baixarTodas(botao, id){
+  // Juntar seis artes num .zip leva alguns segundos, e durante eles o botão ficava
+  // clicável: clicar de novo montava um segundo .zip e baixava o arquivo duas vezes.
+  if (botao){ botao.disabled = true; botao.textContent = 'juntando…'; }
+  var soltar = function(){
+    if (botao){ botao.disabled = false; botao.textContent = 'Baixar as artes'; }
+  };
   recado('Juntando as artes…', 20000);
   google.script.run
     .withSuccessHandler(function(z){
+      soltar();
       baixarBase64(z);
       recado(z.quantas + ' artes baixadas' +
         (z.falhas && z.falhas.length ? ' (' + z.falhas.length + ' falharam)' : '') + '.', 6000);
     })
-    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .withFailureHandler(function(e){ soltar(); recado('Não consegui: ' + e.message, 9000); })
     .painelBaixarArtes(CHAVE, id);
 }
 
@@ -513,47 +953,15 @@ function baixarRelatorio(periodo){
 
 // Refazer não repete: cada pedido tenta um tratamento diferente do anterior,
 // porque o recorte é determinístico e repetir daria a mesma arte.
-function refazerUma(id, peca){
-  if (!confirm('Refazer as artes desta banda tentando outro tratamento? ' +
-               'As seis peças saem do mesmo tratamento das fotos, então todas são ' +
-               'refeitas — não dá para refazer uma sem refazer o tratamento.')) return;
-  chamar('painelRefazer', [id, peca]);
-}
 
-function refazerTodas(id){
-  if (!confirm('Refazer todas as artes desta banda, tentando outro tratamento?')) return;
-  chamar('painelRefazer', [id, '']);
-}
 
-function bt(classe, rotulo, fn, id){
-  return '<button class="b '+classe+'" onclick="acao(\''+fn+'\',\''+id+'\')">'+rotulo+'</button>';
-}
 function opt(v,r,atual){ return '<option value="'+v+'"'+(atual===v?' selected':'')+'>'+r+'</option>'; }
 
-function acao(fn, id){
-  if (fn === 'reprovar'){
-    var m = prompt('O que está errado nas artes? (vai ficar registrado)');
-    if (m === null) return;
-    return chamar('painelReprovar', [id, m]);
-  }
-  if (fn === 'cancelar'){
-    if (!confirm('Cancelar esta programação e tirar todas as publicações da fila?')) return;
-    return chamar('painelCancelar', [id]);
-  }
-  chamar(fn, [id]);
-}
 
-function mudarShow(id){
-  var p = dados.programacoes.filter(function(x){return x.id===id;})[0];
-  var d = prompt('Nova data do show (AAAA-MM-DD). Deixe como está para não mudar:', p.dataShowISO);
-  if (d === null) return;
-  var h = prompt('Novo horário do show (HH:MM):', p.horaShow);
-  if (h === null) return;
-  chamar('painelAlterarShow', [id, d, h]);
-}
 
-function verLegendas(id){
-  var p = dados.programacoes.filter(function(x){return x.id===id;})[0];
+function verLegendas(botao, id){
+  var p = acharPrograma(id);
+  if (!p) return;
   var html = '<h3 style="margin-bottom:4px">Legendas — '+esc(p.banda)+'</h3>' +
     '<p class="meta" style="margin-bottom:10px">Cada legenda acompanha a publicação ' +
     'daquele layout. Story não leva legenda — o Instagram não aceita. Pode reescrever ' +
@@ -736,7 +1144,9 @@ function confirmarTroca(id, indice, arquivo, dados, largura, altura){
             'Refazer as artes agora com ela?' + QUEBRA + QUEBRA +
             'Se for trocar mais fotos, troque todas primeiro e refaça uma vez só. ' +
             'Refazer tira da fila as publicações já agendadas desta banda.')) {
-          chamar('painelRefazer', [id, '']);
+          // A mesma trava do botão de refazer: trocar duas fotos em seguida e
+          // aceitar as duas ofertas enfileiraria duas produções da mesma banda.
+          chamar('painelRefazer', [id, ''], null, 'refazer|' + id);
         }
       })
       .withFailureHandler(function(e){
