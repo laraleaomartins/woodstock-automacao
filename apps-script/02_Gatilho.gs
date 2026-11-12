@@ -130,6 +130,33 @@ function validar(d) {
   if (!(d.arquivos || []).length) problemas.push('Nenhuma foto enviada.');
   if (!d.instagram) problemas.push('@ do Instagram em branco.');
   if (String(d.telefone).replace(/\D/g, '').length < 10) problemas.push('Telefone incompleto.');
+
+  // Tudo obrigatório, menos a logo e os campos que dependem de uma marcação.
+  //
+  // O horário: a hora que a banda sobe ao palco é o que o público procura. Em
+  // branco, a divulgação sai sem ela ou com um horário suposto por alguém.
+  if (!d.hora) problemas.push('Horário do show em branco.');
+
+  // O couvert é exigido na TELA DE INSCRIÇÃO, e só nela. Antes era opcional e o
+  // branco queria dizer entrada franca; agora é resposta exigida, porque branco
+  // também é o que acontece quando a pessoa não viu o campo, e as duas coisas eram
+  // indistinguíveis.
+  //
+  // Por que só na tela: o formulário antigo do Google nunca teve campo de couvert.
+  // Exigir lá faria toda resposta vinda dele ser recusada — uma porta que
+  // funcionava passaria a recusar tudo, sem ninguém ter pedido isso.
+  if (d.daPagina && !d.couvert) problemas.push('Valor do couvert em branco.');
+
+  // Os condicionais: isentos enquanto a caixa não é marcada, exigidos depois dela.
+  // Marcar "é tributo" e não dizer a quem deixa a informação pela metade, que é
+  // pior do que não ter marcado.
+  if (d.pediuTributo && !d.tributo) {
+    problemas.push('Você marcou que o show é tributo, mas não disse a qual banda.');
+  }
+  if (d.pediuColab && !(d.colabs || []).length) {
+    problemas.push('Você marcou a colaboração, mas não informou o perfil.');
+  }
+
   return problemas;
 }
 

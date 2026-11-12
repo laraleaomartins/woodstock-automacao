@@ -602,6 +602,9 @@ const inscricaoFalsa = (extra = {}) => ({
   data: iso(emDias(10)),
   hora: '21:00',
   instagram: '@bandadaweb',
+  // O couvert entrou na inscrição de exemplo quando passou a ser obrigatório: sem
+  // ele, este exemplo deixou de ser uma inscrição válida.
+  couvert: '15',
   fotos: [imagemFalsa('f1.jpg'), imagemFalsa('f2.png', 'image/png')],
   logo: imagemFalsa('logo.png', 'image/png'),
   ...extra

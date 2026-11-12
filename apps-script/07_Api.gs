@@ -111,8 +111,20 @@ function doPost(e) {
         return json({ ok: true, resultado: publicarVencidos() });
       case 'listar_programacoes':
         return json({ ok: true, programacoes: linhas(ABA.PROGRAMACOES).map(function (p) {
-          return { id: p.ID, banda: p.Banda, recebido: String(p.RecebidoEm), data: String(p.DataShow),
-            hora: horaTexto(p.HoraShow), situacao: p.Situacao, modo: p.Modo,
+          // Couvert, tributo e colaboração moram dentro do registro dos arquivos
+          // recebidos, e não em colunas. A listagem os trazia de fora, e por isso
+          // mostrava uma inscrição sem justamente o que a banda preencheu — num
+          // painel de coleta, a API tem de entregar o que foi coletado.
+          var r = recebidosDe(p);
+          return { id: p.ID, banda: p.Banda, telefone: String(p.Telefone || ''),
+            instagram: String(p.InstagramBanda || ''),
+            recebido: String(p.RecebidoEm), data: String(p.DataShow),
+            hora: horaTexto(p.HoraShow), diaSemana: String(p.DiaSemana || ''),
+            situacao: p.Situacao, modo: p.Modo,
+            couvert: String(r.couvert || ''),
+            tributo: String(r.tributo || ''),
+            colabs: [].concat(r.colabs || []),
+            fotos: (r.fotos || []).length, temLogo: !!r.logo,
             erro: String(p.Erro || ''), avisos: String(p.Avisos || ''), origem: String(p.RespostaId || '') };
         }) });
       case 'listar_logs':

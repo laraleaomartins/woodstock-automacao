@@ -77,6 +77,13 @@ function normalizarInscricao(dados) {
     juntar: dados.juntar === true,
     couvert: valorDeCouvert(dados.couvert),
     tributo: nomeDoTributo(dados.tributo),
+    // Quem MARCOU a caixa, separado do que escreveu: marcar e deixar em branco é
+    // erro, e sem saber que marcou não dá para distinguir isso de não ter marcado.
+    // Marca de onde veio: a tela tem campos que o formulário antigo do Google não
+    // tem, e exigir lá o que lá não existe recusaria toda resposta dele.
+    daPagina: true,
+    pediuTributo: dados.pediuTributo === true,
+    pediuColab: dados.pediuColab === true,
     colabs: perfisDeColaboracao(dados.colabs)
   };
 }

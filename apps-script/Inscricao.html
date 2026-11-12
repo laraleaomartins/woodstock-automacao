@@ -40,6 +40,42 @@
   .pronto .tico{font-size:46px;color:var(--vermelho)}
   .escondido{position:absolute;left:-9999px}
   .oculto{display:none}
+
+  /* O aviso de conferir. Destacado porque o erro que ele previne não tem conserto
+     barato: a arte sai com o que foi digitado, e o engano só aparece depois de
+     pronta e publicada. */
+  .atencao{background:#3a2a00;border:1px solid #7a5c00;color:#ffd96b;
+    border-left-width:4px;border-radius:8px;padding:12px 14px;margin-bottom:16px;
+    font-size:13.5px;line-height:1.5}
+  .atencao b{color:#ffe9a3}
+
+  /* A janela de conferência. */
+  #conferencia{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);
+    display:flex;align-items:center;justify-content:center;padding:18px}
+  #conferencia.oculto{display:none}
+  .caixaConf{width:100%;max-width:460px;max-height:88vh;overflow:auto;
+    background:var(--cinza,#1b1b1b);border:1px solid var(--borda,#2e2e2e);
+    border-radius:14px;padding:20px}
+  .caixaConf h2{font-size:19px;margin:0 0 4px}
+  .subConf{color:var(--fraco,#9a9a9a);font-size:13px;margin:0 0 14px}
+  .linhaConf{display:flex;gap:12px;padding:9px 0;
+    border-bottom:1px solid rgba(255,255,255,.07)}
+  .linhaConf:last-of-type{border-bottom:0}
+  .rotConf{flex:0 0 108px;font-size:11px;letter-spacing:.7px;text-transform:uppercase;
+    color:var(--fraco,#9a9a9a);padding-top:2px}
+  .valConf{flex:1;font-size:14.5px;line-height:1.35;overflow-wrap:anywhere}
+  .linhaConf.vazia .valConf{color:var(--fraco,#9a9a9a);font-style:italic}
+  .acoesConf{display:flex;gap:10px;margin-top:18px}
+  .acoesConf button{flex:1;padding:13px 14px;border-radius:9px;font-size:15px;
+    cursor:pointer;border:1px solid transparent}
+  .acoesConf #confirmarEnvio{background:var(--vermelho,#d6121c);color:#fff;
+    font-weight:600}
+  .acoesConf .secundario{background:transparent;color:var(--texto,#f2f2f2);
+    border-color:var(--borda,#2e2e2e)}
+  @media (max-width: 420px){
+    .acoesConf{flex-direction:column-reverse}
+    .rotConf{flex-basis:92px}
+  }
 </style>
 </head>
 <body>
@@ -49,6 +85,22 @@
     divulgação do show.</div>
 
   <form id="f" autocomplete="on">
+    <!-- O AVISO EM DESTAQUE. Não é formalidade: o que for digitado aqui sai
+         impresso na arte exatamente assim. Nome com letra trocada, @ errado ou dia
+         e mês invertidos não são pegos por sistema nenhum — e a arte já terá sido
+         feita e publicada quando alguém notar. -->
+    <div class="atencao">
+      <b>Confira antes de enviar.</b>
+      O que você escrever aqui vai <b>impresso na arte do jeito que foi digitado</b>.
+      Olhe com calma o <b>nome da banda</b>, o <b>@ do Instagram</b> e a
+      <b>data do show</b> — um erro aqui só aparece quando a arte já está pronta.
+    </div>
+
+    <!-- Um aviso só, no alto, em vez de "obrigatório" repetido em sete campos. A
+         exceção é que precisa ser dita; a regra o navegador já cobra sozinho. -->
+    <div class="dica" style="margin-bottom:14px">Todos os campos são obrigatórios,
+      menos o logotipo.</div>
+
     <label>Nome da banda ou artista</label>
     <input type="text" id="banda" required maxlength="80">
     <div class="dica">Exatamente como deve aparecer na arte.</div>
@@ -69,9 +121,8 @@
     <label>Valor do couvert</label>
     <!-- Sem exemplo dentro do campo: um número cinza ali é lido como valor já
          preenchido, e o show sairia anunciando um preço que ninguém combinou. -->
-    <input type="text" id="couvert" inputmode="decimal" maxlength="12">
-    <div class="dica">Só o valor, em reais — pode escrever 20 ou 20,00. Deixando em
-      branco, a arte sai sem a linha do couvert.</div>
+    <input type="text" id="couvert" inputmode="decimal" maxlength="12" required>
+    <div class="dica">Só o valor, em reais — pode escrever 20 ou 20,00.</div>
 
     <!-- Show de tributo é informação de divulgação, não detalhe: "tributo ao
          Legião Urbana" diz ao público o que vai ouvir, e quem faz a arte precisa
@@ -174,6 +225,23 @@
     <div class="erro" id="erro"></div>
     <button type="submit" id="enviar">Enviar inscrição</button>
   </form>
+
+<!-- A CONFERÊNCIA, antes de enviar. Mostra o que foi preenchido do jeito que vai
+     ser usado, e a data por extenso: no formato do computador (2026-12-20) uma
+     troca de dia por mês não se denuncia, e é justamente o erro que esta tela
+     existe para pegar. -->
+<div id="conferencia" class="oculto" role="dialog" aria-modal="true"
+     aria-labelledby="tituloConf">
+  <div class="caixaConf">
+    <h2 id="tituloConf">Está tudo certo?</h2>
+    <p class="subConf">Estes dados vão para a arte do jeito que estão escritos.</p>
+    <div id="conferenciaCorpo"></div>
+    <div class="acoesConf">
+      <button type="button" class="secundario" id="voltarEditar">Voltar e corrigir</button>
+      <button type="button" id="confirmarEnvio">Está certo, enviar</button>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -252,20 +320,29 @@ ligarCampo('logo', 'rotLogo', 'prevLogo', 1);
 // O campo do nome só aparece para quem disse que é tributo.
 document.getElementById('querTributo').addEventListener('change', function(){
   var caixa = document.getElementById('caixaTributo');
+  var campo = document.getElementById('tributo');
   caixa.classList.toggle('oculto', !this.checked);
-  if (this.checked) document.getElementById('tributo').focus();
-  else document.getElementById('tributo').value = '';
+  // Obrigatório só enquanto a caixa está marcada. Marcar "é tributo" e não dizer a
+  // quem deixa a informação pela metade — pior do que não ter marcado. E escondido,
+  // um campo obrigatório travaria o envio sem a pessoa ver onde.
+  campo.required = this.checked;
+  if (this.checked) campo.focus(); else campo.value = '';
 });
 
 document.getElementById('querColab').addEventListener('change', function(){
   var caixa = document.getElementById('caixaColab');
   caixa.classList.toggle('oculto', !this.checked);
   var primeiro = document.getElementById('colab1');
+  primeiro.required = this.checked;
   if (this.checked && !primeiro.value) {
     primeiro.value = document.getElementById('instagram').value;
   }
 });
 
+// Enviar não envia: abre a conferência. Quando o código chega aqui, o navegador já
+// cobrou os campos obrigatórios — o que falta é a conferência que só olho humano
+// faz: nome escrito errado, @ trocado, dia e mês invertidos. Nada disso o sistema
+// sabe conferir, e tudo isso sai impresso na arte do jeito que foi digitado.
 document.getElementById('f').addEventListener('submit', function(ev){
   ev.preventDefault();
   document.getElementById('erro').style.display = 'none';
@@ -274,6 +351,25 @@ document.getElementById('f').addEventListener('submit', function(ev){
     mostrarErro('Escolha pelo menos uma foto da banda.');
     return;
   }
+  abrirConferencia();
+});
+
+document.getElementById('voltarEditar').addEventListener('click', fecharConferencia);
+document.getElementById('conferencia').addEventListener('click', function(ev){
+  if (ev.target === this) fecharConferencia();
+});
+document.addEventListener('keydown', function(ev){
+  if (ev.key === 'Escape' &&
+      !document.getElementById('conferencia').classList.contains('oculto')){
+    fecharConferencia();
+  }
+});
+document.getElementById('confirmarEnvio').addEventListener('click', function(){
+  fecharConferencia();
+  enviarDeVerdade();
+});
+
+function enviarDeVerdade(){
   var botao = document.getElementById('enviar');
   botao.disabled = true;
   botao.textContent = 'Preparando as imagens…';
@@ -292,8 +388,10 @@ document.getElementById('f').addEventListener('submit', function(ev){
       hora: document.getElementById('hora').value,
       instagram: document.getElementById('instagram').value,
       couvert: document.getElementById('couvert').value,
+      pediuTributo: document.getElementById('querTributo').checked,
       tributo: document.getElementById('querTributo').checked
         ? document.getElementById('tributo').value : '',
+      pediuColab: document.getElementById('querColab').checked,
       colabs: document.getElementById('querColab').checked
         ? [document.getElementById('colab1').value]
         : [],
@@ -326,7 +424,79 @@ document.getElementById('f').addEventListener('submit', function(ev){
     botao.disabled = false; botao.textContent = 'Enviar inscrição';
     mostrarErro(e.message);
   });
-});
+}
+
+// ------------------------------------------------- conferir antes de enviar
+
+/**
+ * O que foi preenchido, do jeito que vai ser usado.
+ *
+ * Lê os campos na hora, e não uma cópia guardada: o que a pessoa vê aqui é
+ * exatamente o que será enviado. Uma tela de conferência que mostra outra coisa é
+ * pior que nenhuma, porque dá uma certeza falsa.
+ */
+function oQueFoiPreenchido(){
+  var v = function(id){ return (document.getElementById(id).value || '').trim(); };
+  var itens = [
+    ['Nome', v('banda')],
+    ['Data do show', dataPorExtenso(v('data'))],
+    ['Horário', v('hora')],
+    ['Telefone', v('telefone')],
+    ['Instagram', v('instagram')],
+    ['Couvert', v('couvert') ? 'R$ ' + v('couvert') : '—']
+  ];
+  if (document.getElementById('querTributo').checked){
+    itens.push(['Tributo a', v('tributo')]);
+  }
+  if (document.getElementById('querColab').checked){
+    itens.push(['Coautor no post', v('colab1')]);
+  }
+  itens.push(['Fotos', escolhidas.fotos.length +
+    (escolhidas.fotos.length === 1 ? ' foto' : ' fotos')]);
+  itens.push(['Logotipo', escolhidas.logo ? escolhidas.logo.name : 'não enviou']);
+  return itens;
+}
+
+// A data vem do campo no formato do computador (2026-12-20). Mostrada assim, ela
+// não denuncia uma troca de dia por mês — e trocar dia por mês é justamente o erro
+// que esta tela existe para pegar.
+function dataPorExtenso(iso){
+  if (!iso) return '—';
+  var partes = iso.split('-');
+  if (partes.length !== 3) return iso;
+  var DIAS = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira',
+              'sexta-feira','sábado'];
+  var MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto',
+               'setembro','outubro','novembro','dezembro'];
+  var d = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
+  if (isNaN(d.getTime())) return iso;
+  return DIAS[d.getDay()] + ', ' + Number(partes[2]) + ' de ' +
+         MESES[Number(partes[1]) - 1] + ' de ' + partes[0];
+}
+
+function abrirConferencia(){
+  var corpo = document.getElementById('conferenciaCorpo');
+  corpo.innerHTML = oQueFoiPreenchido().map(function(par){
+    var vazio = !par[1] || par[1] === '—';
+    return '<div class="linhaConf' + (vazio ? ' vazia' : '') + '">' +
+      '<span class="rotConf">' + par[0] + '</span>' +
+      '<span class="valConf">' + escapar(par[1] || '—') + '</span></div>';
+  }).join('');
+  document.getElementById('conferencia').classList.remove('oculto');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('confirmarEnvio').focus();
+}
+
+function fecharConferencia(){
+  document.getElementById('conferencia').classList.add('oculto');
+  document.body.style.overflow = '';
+}
+
+function escapar(t){
+  return String(t).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
 </script>
 </body>
 </html>
