@@ -718,7 +718,7 @@ def em_resolucao_de_trabalho(caminho, lado=None):
     return im, dados.getvalue()
 
 
-def recortar_em_processo_proprio(entrada, saida, modelo=None):
+def recortar_em_processo_proprio(entrada, saida, modelo=None, sem_juntar=False):
     """
     Recorta a foto num processo separado, e devolve (aviso, concordância).
 
@@ -743,6 +743,10 @@ def recortar_em_processo_proprio(entrada, saida, modelo=None):
     ambiente = dict(os.environ)
     if modelo:
         ambiente["REMBG_MODELO"] = modelo
+    # O recorte roda num processo separado (ver acima), então a escolha precisa
+    # viajar pelo ambiente — é o mesmo caminho que o modelo já usa.
+    if sem_juntar:
+        ambiente["SEM_JUNTAR_OPINIOES"] = "1"
     pedido = subprocess.run(
         [sys.executable, os.path.abspath(__file__), "--recortar", entrada, saida],
         capture_output=True, text=True, env=ambiente)
@@ -841,6 +845,18 @@ def recortar_fundo(entrada, saida, obrigatorio=False):
             aviso = ("os recortadores discordaram muito nesta foto (%.0f%% da área). "
                      "Usei só o melhor deles. Confira a arte: se faltar alguém ou algum "
                      "pedaço, envie a foto já recortada em PNG com fundo transparente."
+                     % ((1 - concordancia) * 100))
+        elif concordancia < CONCORDANCIA_MINIMA and os.environ.get("SEM_JUNTAR_OPINIOES") == "1":
+            # Pedido explícito de refazer "sem juntar opiniões": fica só o melhor
+            # recortador. Juntar recupera pedaço perdido, mas também COLA pedaço de
+            # fundo — o que qualquer um dos três achou que era pessoa entra. Medido
+            # numa foto de show: o melhor modelo sozinho pegava 51,3% da imagem, a
+            # junção dos três pegava 53,7%, e esses 2,3% a mais eram um borrão com
+            # forma de gente ao lado do guitarrista. Quando é isso que incomoda, o
+            # conserto é confiar num só.
+            aviso = ("usei só o melhor recortador nesta foto, sem juntar a opinião dos "
+                     "outros (eles discordaram em %.0f%% da área). Se faltar algum "
+                     "pedaço, refaça mais uma vez para tentar outro recortador."
                      % ((1 - concordancia) * 100))
         elif concordancia < CONCORDANCIA_MINIMA:
             # Os recortadores erram de formas opostas: um perde um integrante, o outro
@@ -1003,30 +1019,60 @@ def decidiu_nao_recortar(foto, caminho):
     return (not neutro) if caminho.get("inverter_decisao") else neutro
 
 
-def caminho_da_tentativa(numero):
+# O que cada refazer tenta de diferente, conforme o caso.
+#
+# As listas são SEPARADAS porque os dois casos não têm as mesmas alavancas, e tratar
+# os dois igual foi o defeito: num show de banda montada a partir de fotos separadas,
+# duas das três alternativas simplesmente não eram aplicadas, e o refazer devolvia a
+# mesma arte. Medido num caso real: de oito cliques em "Refazer", só UM mudou alguma
+# coisa.
+#
+# FOTO AVULSA — a dúvida é recortar ou não, e com qual recortador.
+CAMINHOS_FOTO_AVULSA = [
+    {"inverter_decisao": True},                  # fundo parecia neutro e não era (ou o contrário)
+    {"modelo": MODELO_RESGATE},                  # outro recortador, que erra diferente
+    {"nunca_recortar": True},                    # foto inteira, sem silhueta nenhuma
+]
+
+# BANDA MONTADA — recortar é obrigatório (sem recorte não há montagem), então
+# "inverter a decisão" e "não recortar" não existem aqui. O que de fato muda a arte
+# é de quem se aceita a opinião e como as pessoas são arrumadas.
+CAMINHOS_BANDA_MONTADA = [
+    {"sem_juntar_opinioes": True},               # só o melhor recortador; tira fantasma colado
+    {"modelo": MODELO_RESGATE},                  # outro recortador
+    {"modelo": MODELO_RESGATE, "sem_juntar_opinioes": True},
+    {"outro_arranjo": True},                     # troca a arrumação das pessoas nas peças
+]
+
+
+def caminho_da_tentativa(numero, juntar=False):
     """
     O que fazer diferente quando a arte é refeita.
 
-    Repetir o mesmo cálculo devolve o mesmo resultado: o recorte é determinístico,
-    a mesma foto sai igual todas as vezes. Um "refazer" que repete não serviria para
-    nada. Então cada tentativa troca a decisão que tem mais chance de ser a culpada
-    pela arte ter saído errada — nesta ordem, porque é a ordem em que elas erram:
+    Repetir o mesmo cálculo devolve o mesmo resultado: o recorte é determinístico, a
+    mesma foto sai igual todas as vezes. Um "refazer" que repete não serve para nada.
 
-      1. o jeito normal, decidindo sozinho se recorta;
-      2. INVERTE a decisão de recortar. É o erro mais comum: fundo que parecia
-         neutro e não era, ou o contrário;
-      3. recorta com outro recortador, que erra de forma diferente do primeiro;
-      4. usa a foto inteira, dissolvida, sem tentar recortar — o caminho que
-         nunca deixa silhueta errada, porque não faz silhueta nenhuma.
+    Dois defeitos moravam aqui, e os dois davam no mesmo sintoma — "o refazer entrega
+    o mesmo resultado errado":
 
-    Da quinta em diante volta ao começo: já se esgotou o que dá para variar sem
-    inventar, e insistir seria enganar quem clicou.
+      1. As alternativas eram as mesmas para foto avulsa e para banda montada. Mas
+         numa banda montada o recorte é obrigatório, e as duas alternativas que
+         mexiam em "recortar ou não" eram ignoradas lá dentro. Sobrava uma só.
+
+      2. Da quinta tentativa em diante a tabela não tinha entrada e devolvia o
+         caminho VAZIO — que é o caminho normal, o da primeira vez. Ou seja: o quinto
+         clique devolvia exatamente a arte do primeiro, e o sexto também, para sempre.
+         O comentário dizia que voltava ao começo; o código voltava para o início de
+         tudo, que não é a mesma coisa.
+
+    Agora as alternativas CICLAM entre si, sem nunca repetir o caminho normal: quem
+    clica de novo recebe sempre a próxima alternativa da roda.
     """
-    return {
-        2: {"inverter_decisao": True},
-        3: {"inverter_decisao": False, "modelo": MODELO_RESGATE},
-        4: {"nunca_recortar": True},
-    }.get(int(numero or 1), {})
+    n = int(numero or 1)
+    if n <= 1:
+        return {}
+    lista = CAMINHOS_BANDA_MONTADA if juntar else CAMINHOS_FOTO_AVULSA
+    return dict(lista[(n - 2) % len(lista)])
 
 
 def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
@@ -1048,14 +1094,24 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
     if not fotos:
         raise RuntimeError("nenhuma foto chegou nesta programação")
 
-    caminho = caminho_da_tentativa(tentativa)
+    # O caminho depende do caso: banda montada e foto avulsa não têm as mesmas
+    # alavancas. Ver caminho_da_tentativa.
+    caminho = caminho_da_tentativa(tentativa, juntar=juntar)
     avisos = []
     if caminho:
-        avisos.append("refazendo pelo caminho %d: %s" % (tentativa, ", ".join(
-            {"inverter_decisao": "inverti a decisão de recortar",
-             "modelo": "troquei o recortador",
-             "nunca_recortar": "usei as fotos inteiras, sem recortar"}[k]
-            for k in caminho)))
+        # O aviso diz o que foi FEITO, e não o que estava na tabela. Antes ele
+        # anunciava "inverti a decisão de recortar" mesmo em banda montada, onde essa
+        # inversão nunca era aplicada — o sistema contando uma mudança que não houve
+        # é pior que não avisar nada, porque quem lê acredita e para de procurar.
+        EM_PORTUGUES = {
+            "inverter_decisao": "inverti a decisão de recortar",
+            "modelo": "troquei o recortador",
+            "nunca_recortar": "usei as fotos inteiras, sem recortar",
+            "sem_juntar_opinioes": "usei só o melhor recortador, sem juntar a opinião dos outros",
+            "outro_arranjo": "troquei a arrumação das pessoas nas peças",
+        }
+        avisos.append("refazendo (%dª vez): %s" % (tentativa, ", ".join(
+            EM_PORTUGUES[k] for k in caminho)))
     houve_montagem = False
     duvidosas = []
     recortadas = []
@@ -1097,7 +1153,8 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
                 # Ou vai entrar numa montagem — e aí separar é obrigatório, senão
                 # as pessoas não encaixam lado a lado — ou o fundo atrapalha.
                 aviso, concordancia = recortar_em_processo_proprio(
-                    foto, destino, caminho.get("modelo"))
+                    foto, destino, caminho.get("modelo"),
+                    sem_juntar=caminho.get("sem_juntar_opinioes", False))
                 if aviso:
                     avisos.append("foto%d: %s" % (i + 1, aviso))
                 if juntar:
@@ -1215,6 +1272,20 @@ def preparar(pasta_entrada, pasta_gerador, ident, juntar=False, tentativa=1):
     if houve_montagem:
         mais_deitada = montada            # peças A e C: vão largo
         mais_em_pe = montada_alta         # peça B: vão alto, banda em duas fileiras
+
+        # Refazer pedindo OUTRO ARRANJO troca a arrumação das pessoas: a banda em
+        # duas fileiras passa a aparecer também nas peças de vão largo.
+        #
+        # Por que isso muda a arte de verdade, e não é só mexer por mexer: quatro
+        # pessoas enfileiradas formam uma tira muito mais deitada que qualquer um dos
+        # vãos, e para caber na largura ela encolhe até sobrar fundo vazio. Medido
+        # numa banda de quatro integrantes: enfileirada, ocupou 30% da altura da peça
+        # da tarja; em duas fileiras o mesmo grupo é mais alto e aproveita mais o
+        # espaço. Qual das duas fica melhor depende das fotos, e por isso é uma
+        # alternativa de refazer e não uma troca definitiva.
+        if caminho.get("outro_arranjo") and montada_alta != montada:
+            mais_deitada = montada_alta
+            mais_em_pe = montada
 
     saida = {}
     tratar = os.path.join(pasta_gerador, "tratar_foto.py")

@@ -422,7 +422,11 @@ def recorte_falso(concordancia):
     usa de verdade. Trocar a função de dentro não adiantaria: ela roda noutro
     processo, onde nada que este teste mude chega.
     """
-    def fingido(entrada, saida, modelo=None):
+    # A assinatura acompanha a de verdade, sem_juntar inclusive: um dublê com menos
+    # parâmetros que o original não falha dizendo isso — ele estoura lá dentro e o
+    # erro chega disfarçado de "não consegui recortar a foto", que manda procurar no
+    # lugar errado. Foi o que aconteceu quando o sem_juntar entrou.
+    def fingido(entrada, saida, modelo=None, sem_juntar=False):
         Image.open(entrada).convert("RGBA").save(saida)
         return None, concordancia
     return fingido
@@ -452,6 +456,51 @@ try:
                  "com 33%% recusa, em vez de pôr um bloco de fundo no meio da banda")
 finally:
     pi.recortar_em_processo_proprio = original
+
+print("")
+print("• Refazer tenta mesmo algo diferente, e nunca repete o caminho normal")
+
+# O defeito que isto guarda, relatado com oito cliques num caso real: "o refazer
+# entrega o mesmo resultado errado". Eram dois problemas somados.
+#
+# O primeiro: as alternativas eram as mesmas para foto avulsa e para banda montada,
+# mas numa banda o recorte é obrigatório — as duas alternativas que mexiam em
+# "recortar ou não" eram ignoradas lá dentro, e sobrava uma só de três.
+#
+# O segundo: da quinta tentativa em diante a tabela não tinha entrada e devolvia o
+# caminho VAZIO, que é o caminho normal. O quinto clique devolvia a arte do primeiro,
+# e o sexto também, para sempre.
+caminhos_banda = [pi.caminho_da_tentativa(n, juntar=True) for n in range(2, 12)]
+caminhos_avulsa = [pi.caminho_da_tentativa(n, juntar=False) for n in range(2, 12)]
+
+conferir(all(c for c in caminhos_banda),
+         "em banda montada, nenhuma tentativa cai no caminho normal")
+conferir(all(c for c in caminhos_avulsa),
+         "em foto avulsa, nenhuma tentativa cai no caminho normal")
+conferir(pi.caminho_da_tentativa(1, juntar=True) == {},
+         "a primeira vez continua sendo o caminho normal")
+
+sem_sentido = [c for c in caminhos_banda
+               if "inverter_decisao" in c or "nunca_recortar" in c]
+conferir(not sem_sentido,
+         "banda montada não recebe alternativa que ela ignora")
+
+uteis = {"sem_juntar_opinioes", "modelo", "outro_arranjo"}
+conferir(all(set(c) & uteis for c in caminhos_banda),
+         "toda tentativa de banda mexe em algo que muda a arte")
+
+conferir(len({str(sorted(c.items())) for c in caminhos_banda[:4]}) == 4,
+         "as quatro primeiras alternativas de banda são diferentes entre si")
+conferir(caminhos_banda[0] == caminhos_banda[4],
+         "e a roda recomeça na quinta, em vez de virar o caminho normal")
+
+# Mexer no que a tabela devolve não pode mexer na tabela. Devolver o próprio
+# dicionário deixaria quem chama alterar a alternativa para todas as vezes
+# seguintes, e o defeito só apareceria no segundo refazer.
+_c = pi.caminho_da_tentativa(2, juntar=True)
+_c["modelo"] = "estragado"
+conferir("modelo" not in pi.caminho_da_tentativa(2, juntar=True),
+         "a tabela das alternativas não se deixa alterar por quem a usa")
 
 print("\n• Foto vazia é recusada em vez de virar arte quebrada")
 vazia = tempfile.mkdtemp()
