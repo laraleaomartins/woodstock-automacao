@@ -102,6 +102,54 @@ function arquivoValidoDaFoto(foto) {
 
 // ---------------------------------------------------------------- painel
 
+/**
+ * A miniatura de uma foto, buscada pelo PRÓPRIO sistema.
+ *
+ * O defeito que isto conserta: o painel mandava o navegador buscar a miniatura
+ * direto no Drive, num endereço do tipo drive.google.com/thumbnail?id=... Esse
+ * endereço só responde a quem está com a sessão do Google — e as fotos das bandas
+ * são particulares, como têm de ser. O painel roda dentro de uma moldura isolada, e
+ * o navegador não manda a sessão do Google para outro domínio de dentro dela. Então
+ * o Drive respondia com um desvio para a tela de login, e no lugar da foto aparecia
+ * o quadrado de imagem quebrada. Medido: o endereço devolve 302 sem a sessão.
+ *
+ * Aqui quem busca é o sistema, que é dono dos arquivos e não depende de sessão
+ * nenhuma do navegador. A imagem volta embutida na resposta, e o painel só a coloca
+ * na tela.
+ *
+ * Por que não vem junto com o resto do painel: são quatro fotos por banda, e embutir
+ * todas de uma vez faria a tela inteira esperar pelas imagens antes de aparecer. Cada
+ * cartão pede a sua depois de desenhado.
+ */
+function painelPreviaFoto(chave, id, indice, qual) {
+  exigirChave(chave);
+  var prog = acharProgramacao(id);
+  if (!prog) throw new Error('Programação não encontrada.');
+
+  var foto = (recebidosDe(prog).fotos || [])[Number(indice)];
+  if (!foto) throw new Error('Foto não encontrada nesta programação.');
+
+  var alvo = (qual === 'editada' && foto.manual) ? foto.manual : foto;
+  if (!alvo || !alvo.id) return '';
+
+  var arquivo = DriveApp.getFileById(alvo.id);
+
+  // O Drive guarda uma miniatura pronta de cada imagem; é ela que queremos, porque
+  // pesa uns poucos quilobytes. Nem todo arquivo tem — e aí o jeito é mandar o
+  // original, mas só se ele for pequeno o bastante para não travar a tela.
+  var blob = null;
+  try { blob = arquivo.getThumbnail(); } catch (e) { blob = null; }
+  if (!blob) {
+    var tamanho = 0;
+    try { tamanho = arquivo.getSize(); } catch (e) { tamanho = 0; }
+    if (!tamanho || tamanho > 900 * 1024) return '';
+    blob = arquivo.getBlob();
+  }
+
+  return 'data:' + (blob.getContentType() || 'image/jpeg') + ';base64,' +
+    Utilities.base64Encode(blob.getBytes());
+}
+
 function painelFotos(chave, id) {
   exigirChave(chave);
   var prog = acharProgramacao(id);

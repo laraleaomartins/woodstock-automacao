@@ -48,6 +48,9 @@
   .foto .nome{font-size:11px;color:var(--fraco);word-break:break-all}
   .foto .estado{font-size:10px;letter-spacing:.5px;text-transform:uppercase;
     border-radius:4px;padding:2px 6px;align-self:flex-start}
+  .fotos img{background:#161616}
+  .semPrevia{display:flex;align-items:center;justify-content:center;text-align:center;
+    padding:10px;font-size:11px;color:var(--fraco);background:#161616;min-height:120px}
   .e-ok{background:#0e2a16;color:#7ee29a;border:1px solid #1d5c33}
   .e-erro{background:#2e0d10;color:#ff9aa2;border:1px solid #7a2129}
   .e-duvidoso{background:#3a2a00;color:#ffd96b;border:1px solid #7a5c00}
@@ -278,9 +281,14 @@ function desenharProgramacoes(){
         var rotulo = {ok:'processada', erro:'precisa de conserto',
                       duvidoso:'resultado duvidoso', editada:'editada por você',
                       sem_informacao:'ainda não processada'}[f.estado] || f.estado;
-        var prev = f.editada ? f.editada.previa : f.previaOriginal;
+        // A imagem NÃO vem num endereço do Drive: aquele endereço só responde a
+        // quem tem a sessão do Google, e o navegador não a manda para fora da
+        // moldura isolada onde o painel roda — o que deixava o quadrado de imagem
+        // quebrada no lugar da foto. Quem busca é o próprio sistema, logo depois
+        // desta tela aparecer. Ver painelPreviaFoto.
+        var qual = f.editada ? 'editada' : 'original';
         return '<div class="foto">' +
-          '<img src="'+esc(prev)+'" loading="lazy" alt="'+esc(f.nome)+'">' +
+          '<img data-prev="'+p.id+'|'+f.indice+'|'+qual+'" alt="'+esc(f.nome)+'">' +
           '<div class="corpo">' +
           '<span class="estado e-'+esc(f.estado)+'">'+esc(rotulo)+'</span>' +
           '<span class="nome">'+esc(f.nome)+'</span>' +
@@ -326,6 +334,9 @@ function desenharProgramacoes(){
       (p.avisos ? '<div class="aviso" style="margin:10px 0 0"><b>Confira antes de aprovar:</b> '+esc(p.avisos)+'</div>' : '') +
       fotos + galeria + '<div class="acoes">'+acoes.join('')+'</div></div>';
   }).join('');
+
+  // As miniaturas vêm depois da tela, para a lista não esperar pelas imagens.
+  carregarPrevias();
 }
 
 // O Apps Script devolve arquivo em base64 — não dá para apontar um link direto
@@ -441,6 +452,50 @@ function verLegendas(id){
 }
 
 // ------------------------------------------------- fotos enviadas pela banda
+
+// Busca as miniaturas DEPOIS que a tela já apareceu, uma de cada vez.
+//
+// De uma vez só seriam quatro por banda — com cinco bandas na tela, vinte pedidos
+// simultâneos ao mesmo servidor, que o Apps Script atende devagar e em fila. Em
+// sequência, a primeira foto aparece em poucos segundos e as outras vão chegando,
+// que é melhor que todas aparecerem juntas bem mais tarde.
+var buscandoPrevias = false;
+
+function carregarPrevias(){
+  if (buscandoPrevias) return;
+  var pendentes = Array.prototype.slice.call(
+    document.querySelectorAll('img[data-prev]:not([data-feito])'));
+  if (!pendentes.length) return;
+  buscandoPrevias = true;
+
+  var proxima = function(){
+    var img = pendentes.shift();
+    if (!img){ buscandoPrevias = false; return; }
+    img.setAttribute('data-feito', '1');
+    var partes = img.getAttribute('data-prev').split('|');
+    google.script.run
+      .withSuccessHandler(function(dados){
+        if (dados) img.src = dados;
+        else img.replaceWith(semPrevia('não consegui montar a prévia'));
+        proxima();
+      })
+      .withFailureHandler(function(e){
+        img.replaceWith(semPrevia(e && e.message ? e.message : 'erro ao buscar'));
+        proxima();
+      })
+      .painelPreviaFoto(CHAVE, partes[0], Number(partes[1]), partes[2]);
+  };
+  proxima();
+}
+
+// No lugar da imagem que não veio, um aviso em texto — e não o quadrado de imagem
+// quebrada, que não diz nada a quem olha.
+function semPrevia(motivo){
+  var d = document.createElement('div');
+  d.className = 'semPrevia';
+  d.textContent = motivo;
+  return d;
+}
 
 function baixarFoto(id, indice, qual){
   recado('Buscando a foto…', 20000);
