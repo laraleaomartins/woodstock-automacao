@@ -228,6 +228,24 @@ function recusaDeImagem(nome, bytes) {
     'Mande em JPG ou PNG.';
 }
 
+/**
+ * Deixa um texto seguro para entrar dentro de HTML.
+ *
+ * O relatório é montado como HTML e depois convertido em PDF, e o texto que entra
+ * nele vem do que a banda digitou: nome, @, telefone. Um "&" ou um "<" no meio
+ * disso quebra o documento — e o conversor não avisa, só devolve um PDF com um
+ * pedaço faltando.
+ *
+ * Existe uma função com este nome no painel, mas ela é do NAVEGADOR: o Apps Script
+ * não a enxerga. Montar HTML no servidor sem esta aqui é o que fazia o relatório
+ * novo falhar com "esc is not defined".
+ */
+function esc(valor) {
+  return String(valor == null ? '' : valor).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
 function limparSegredos(texto) {
   var props = PropertiesService.getScriptProperties().getProperties();
   var saida = texto;

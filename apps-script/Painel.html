@@ -136,6 +136,16 @@
     .foto{width:calc(50% - 5px)}
     .foto img{height:150px}
   }
+  /* O cartão de dados deixou de ser uma gaveta fechada: num painel de coleta, os
+     dados SÃO o conteúdo, e esconder o conteúdo atrás de um clique é trabalho a
+     mais em cada banda. */
+  .secao .ficha{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    gap:0 24px;padding:4px 12px 12px}
+  .ficha .campo.semValor .val{color:var(--fraco);font-style:italic}
+  .ficha .copia{margin-left:auto}
+  .tituloSecao .b.mini{margin-left:auto;text-transform:none;letter-spacing:0}
+  .e-inscrita{background:#15223a;color:#9cc3f0;border-color:#2a4a73}
+  table tr.passou td{color:var(--fraco)}
   .fichaBox{margin-top:12px;border:1px solid var(--borda);border-radius:10px;
     background:#121212}
   .fichaBox summary{cursor:pointer;padding:9px 12px;font-size:13px;color:var(--fraco);
@@ -203,10 +213,13 @@
 
 <div class="aviso" id="trava" style="display:none"></div>
 
+<!-- O painel é de COLETA: a banda manda os dados e as fotos, e as artes são
+     feitas fora. Saíram as abas de Configurações (ajustes de publicação, que não
+     existe mais) e o Calendário virou Agenda, listando os shows por data em vez da
+     fila de publicações. -->
 <nav>
-  <button class="on" data-aba="programacoes">Programações</button>
-  <button data-aba="calendario">Calendário</button>
-  <button data-aba="config">Configurações</button>
+  <button class="on" data-aba="programacoes">Inscrições</button>
+  <button data-aba="calendario">Agenda dos shows</button>
   <button data-aba="historico">Histórico</button>
 </nav>
 
@@ -243,7 +256,6 @@
 </div>
 <div id="programacoes"></div>
 <div id="calendario" hidden></div>
-<div id="config" hidden></div>
 <div id="historico" hidden></div>
 
 <div id="recado"></div>
@@ -271,19 +283,6 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
 
 // A situação em palavras, e não no nome interno. "AGUARDANDO_APROVACAO" é como o
 // sistema guarda; quem opera lê "esperando você aprovar".
-var SITUACAO_EM_PALAVRAS = {
-  AGUARDANDO_ARTES: 'na fila',
-  GERANDO_ARTES: 'fazendo as artes',
-  AGUARDANDO_APROVACAO: 'esperando você',
-  APROVADA: 'aprovada',
-  AGENDADA: 'agendada',
-  PUBLICADO: 'publicada',
-  CONCLUIDA: 'concluída',
-  PAUSADA: 'pausada',
-  REPROVADA: 'reprovada',
-  ERRO_ARTES: 'deu erro',
-  CANCELADA: 'cancelada'
-};
 
 /**
  * A faixa de próximo passo: onde este show está e o que fazer agora.
@@ -295,45 +294,6 @@ var SITUACAO_EM_PALAVRAS = {
  *
  * Devolve o texto e o tom. A ação principal fica ao lado, montada por quem chama.
  */
-function proximoPasso(p){
-  var s = p.situacao;
-
-  if (s === 'AGUARDANDO_ARTES'){
-    return { tom: 'espera', texto: 'Na fila para gerar as artes. ' +
-      'A oficina pega os pedidos de dez em dez minutos.' };
-  }
-  if (s === 'GERANDO_ARTES'){
-    return { tom: 'espera', texto: 'Fazendo as artes agora. ' +
-      'Leva uns quatro minutos; a tela se atualiza quando você recarregar.' };
-  }
-  if (s === 'AGUARDANDO_APROVACAO'){
-    var n = contarPecas(p);
-    return { tom: 'voce', texto: 'Esperando você. Confira as ' + n +
-      ' artes abaixo, desmarque as que não quiser publicar e aprove.' };
-  }
-  if (s === 'ERRO_ARTES'){
-    return { tom: 'erro', texto: 'A produção não conseguiu gerar as artes. ' +
-      'Veja o motivo abaixo: quase sempre é uma das fotos, e trocar aquela foto resolve.' };
-  }
-  if (s === 'REPROVADA'){
-    return { tom: 'erro', texto: 'Você reprovou estas artes. ' +
-      'Refaça para o sistema tentar outro caminho, ou troque a foto que ficou ruim.' };
-  }
-  if (s === 'APROVADA' || s === 'AGENDADA'){
-    return { tom: 'ok', texto: 'Aprovada. As publicações estão na fila e saem sozinhas ' +
-      'nos horários do calendário.' };
-  }
-  if (s === 'PAUSADA'){
-    return { tom: 'espera', texto: 'Pausada. Nada sai desta banda até você retomar.' };
-  }
-  if (s === 'CONCLUIDA'){
-    return { tom: 'ok', texto: 'Tudo que havia para publicar desta banda já saiu.' };
-  }
-  if (s === 'CANCELADA'){
-    return { tom: 'fim', texto: 'Cancelada. As publicações foram tiradas da fila.' };
-  }
-  return null;
-}
 
 /**
  * Os avisos da produção, um por linha e sem o nome técnico da peça.
@@ -342,23 +302,6 @@ function proximoPasso(p){
  * emendadas, misturando problema de foto com problema de arte. Ninguém lê isso. E
  * "peça A" não quer dizer nada para quem não decorou os layouts.
  */
-function avisosEmLista(p){
-  var bruto = String(p.avisos || '').trim();
-  if (!bruto) return '';
-
-  var itens = bruto.split('|').map(function(t){ return t.trim(); })
-                   .filter(function(t){ return t.length; })
-                   .map(function(t){
-                     return t.replace(/\bpeça A\b/g, 'arte da tarja')
-                             .replace(/\bpeça B\b/g, 'arte da coluna')
-                             .replace(/\bpeça C\b/g, 'arte da polaroide');
-                   });
-  if (!itens.length) return '';
-
-  return '<div class="avisos"><div class="tituloAviso">Confira antes de aprovar</div>' +
-    '<ul>' + itens.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') +
-    '</ul></div>';
-}
 
 // ------------------------------------------------- uma operação de cada vez
 
@@ -432,27 +375,6 @@ function chamar(fn, args, aoTerminar, trava, botao){
  *
  * Agora é um botão só, embaixo da galeria, com a frase que explica por quê.
  */
-function refazerArtesDaBanda(botao, id){
-  var p = acharPrograma(id);
-  if (!p) return;
-
-  if (p.situacao === 'GERANDO_ARTES' || p.situacao === 'AGUARDANDO_ARTES'){
-    recado('As artes desta banda já estão sendo feitas agora. Espere terminar.', 6000);
-    return;
-  }
-
-  var quantas = contarPecas(p);
-  var texto = quantas
-    ? 'Refazer as ' + quantas + ' artes desta banda?\n\n' +
-      'Todas são refeitas juntas: as peças saem do mesmo tratamento das fotos, e não ' +
-      'existe refazer uma sem refazer o tratamento.\n\n' +
-      'Cada vez que você refaz, o sistema tenta um caminho DIFERENTE de tratamento. ' +
-      'As artes de agora são substituídas, e as publicações já agendadas saem da fila.'
-    : 'Tentar gerar as artes desta banda de novo?';
-  if (!confirm(texto)) return;
-
-  chamar('painelRefazer', [id, ''], null, 'refazer|' + id, botao);
-}
 
 function acharPrograma(id){
   return ((dados && dados.programacoes) || []).filter(function(x){
@@ -460,9 +382,6 @@ function acharPrograma(id){
   })[0];
 }
 
-function contarPecas(p){
-  return Object.keys(p.feed || {}).length + Object.keys(p.story || {}).length;
-}
 
 function carregar(){
   google.script.run.withSuccessHandler(function(d){ dados = d; desenhar(); })
@@ -489,7 +408,7 @@ function desenhar(){
     trava.innerHTML = '<b>Instagram não conectado.</b> As publicações vão falhar até as credenciais serem configuradas.';
   } else { trava.style.display = 'none'; }
 
-  desenharProgramacoes(); desenharCalendario(); desenharConfig(); desenharHistorico();
+  desenharProgramacoes(); desenharAgenda(); desenharHistorico();
 }
 
 // As programações chegam do servidor já em ordem de data, da mais recente para a
@@ -545,63 +464,6 @@ function desenharProgramacoes(){
     return;
   }
   alvo.innerHTML = lista.map(function(p){
-    var pecas = [];
-    ['A','B','C'].forEach(function(o){
-      if (p.feed[o]) pecas.push({u:p.feed[o], t:'publicação ' + o, k:'FEED:' + o});
-      if (p.story[o]) pecas.push({u:p.story[o], t:'story ' + o, k:'STORY:' + o});
-    });
-    // Esperando aprovação, cada arte ganha sua própria marca: se uma saiu torta,
-    // só ela fica de fora e as outras seguem. Fora da aprovação não há o que
-    // marcar, e a galeria é só galeria.
-    var escolher = p.situacao === 'AGUARDANDO_APROVACAO';
-    var fazendo = p.situacao === 'GERANDO_ARTES' || p.situacao === 'AGUARDANDO_ARTES';
-
-    // A SEÇÃO DAS ARTES: as peças, e UMA ação para refazê-las.
-    //
-    // Antes havia um botão "refazer" em cada peça, mais um "Refazer todas" na
-    // fileira geral: sete botões para uma operação só. E os seis de dentro das peças
-    // mentiam — clicar no de uma refazia as seis, porque as peças saem do mesmo
-    // tratamento das fotos e não existe refazer uma sem refazer o tratamento. A tela
-    // contradizia o próprio aviso que ela mostrava, e convidava a clicar seis vezes.
-    var galeria = '';
-    if (pecas.length){
-      galeria =
-        '<div class="secao"><div class="tituloSecao">Artes geradas' +
-          '<span class="conta">' + pecas.length + ' peças</span></div>' +
-        '<div class="artes">' + pecas.map(function(x){
-          return '<figure>' +
-            (escolher ? '<label class="escolher"><input type="checkbox" checked ' +
-               'data-prog="' + esc(p.id) + '" data-peca="' + esc(x.k) + '">publicar</label>' : '') +
-            '<a href="' + esc(x.u) + '" target="_blank" title="abrir em tamanho cheio">' +
-              '<img src="' + esc(x.u) + '" loading="lazy" alt="' + esc(x.t) + '"></a>' +
-            '<figcaption>' + esc(x.t) + '</figcaption>' +
-            '</figure>';
-        }).join('') + '</div>' +
-        '<div class="rodapeSecao">' +
-          '<p class="explica">Todas as artes são refeitas juntas, porque as ' +
-            pecas.length + ' peças saem do mesmo tratamento das fotos. ' +
-            'Cada vez que você refaz, o sistema tenta um caminho diferente.</p>' +
-          '<button class="b" ' + (fazendo ? 'disabled title="as artes já estão sendo feitas agora"' : '') +
-            ' onclick="refazerArtesDaBanda(this,' + aspas(p.id) + ')">' +
-            'Refazer todas as artes</button>' +
-        '</div></div>';
-    } else if (['ERRO_ARTES', 'REPROVADA'].indexOf(p.situacao) >= 0){
-      // Sem nenhuma peça pronta não há galeria, mas ainda há o que fazer: tentar de
-      // novo. Sem este caminho, uma produção que falhou ficava sem saída na tela.
-      galeria =
-        '<div class="secao"><div class="tituloSecao">Artes geradas</div>' +
-        '<div class="rodapeSecao">' +
-          '<p class="explica">Nenhuma arte saiu desta vez. Tentar de novo faz o ' +
-            'sistema usar um caminho diferente de tratamento das fotos.</p>' +
-          '<button class="b forte" ' + (fazendo ? 'disabled' : '') +
-            ' onclick="refazerArtesDaBanda(this,' + aspas(p.id) + ')">' +
-            'Tentar gerar as artes de novo</button>' +
-        '</div></div>';
-    }
-
-    // A galeria das FOTOS ENVIADAS, antes das artes. Cada uma com o que o
-    // tratamento descobriu dela, e com o que dá para fazer: baixar a original,
-    // mandar uma versão editada, ou desfazer a troca.
     // A seção das FOTOS ENVIADAS vem antes das artes de propósito: quando uma arte
     // sai ruim, é aqui que se descobre e se conserta qual foto é a culpada.
     var comProblema = (p.fotos || []).filter(function(f){
@@ -637,131 +499,70 @@ function desenharProgramacoes(){
           '</div></div></div>';
       }).join('') + '</div></div>' : '';
 
-    // AS AÇÕES, em três grupos e nesta ordem: a principal do momento, as de apoio,
-    // e a destrutiva por último e separada.
+    // O CARTÃO DE UMA INSCRIÇÃO.
     //
-    // Antes era uma fileira única de até dez botões todos iguais, em que aprovar
-    // ficava do lado de cancelar tudo. Nada dizia qual era o próximo passo, e a ação
-    // que desfaz o trabalho tinha o mesmo peso visual da que o conclui.
-    var principal = [];
-    var apoio = [];
-    var perigo = [];
-
-    if (p.situacao === 'AGUARDANDO_APROVACAO'){
-      principal.push('<button class="b forte" onclick="aprovarMarcadas(this,' +
-        aspas(p.id) + ')">Aprovar e publicar as marcadas</button>');
-      apoio.push('<button class="b" onclick="acao(this,' + aspas('reprovar') + ',' +
-        aspas(p.id) + ')">Reprovar</button>');
-    }
-    if (['AGENDADA', 'APROVADA'].indexOf(p.situacao) >= 0){
-      principal.push('<button class="b" onclick="acao(this,' + aspas('painelPausar') +
-        ',' + aspas(p.id) + ')">Pausar as publicações</button>');
-    }
-    if (p.situacao === 'PAUSADA'){
-      principal.push('<button class="b forte" onclick="acao(this,' +
-        aspas('painelRetomar') + ',' + aspas(p.id) + ')">Retomar as publicações</button>');
-    }
-
-    var temAgenda = Object.keys(p.feed || {}).length || Object.keys(p.story || {}).length;
-    if (temAgenda){
-      apoio.push('<button class="b" onclick="verLegendas(this,' + aspas(p.id) +
-        ')">Ver e editar legendas</button>');
-      apoio.push('<button class="b" onclick="acao(this,' + aspas('painelRecalcular') +
-        ',' + aspas(p.id) + ')">Recalcular horários</button>');
-    }
-    if (pecas.length){
-      apoio.push('<button class="b" onclick="baixarTodas(this,' + aspas(p.id) +
-        ')">Baixar as artes</button>');
-    }
-    apoio.push('<button class="b" onclick="mudarShow(this,' + aspas(p.id) +
-      ')">Mudar data ou hora</button>');
-    if (p.pastaUrl){
-      apoio.push('<a class="b" href="' + esc(p.pastaUrl) + '" target="_blank">' +
-        'Abrir no Drive</a>');
-    }
-
-    if (['CANCELADA', 'CONCLUIDA'].indexOf(p.situacao) < 0){
-      perigo.push('<button class="b risco" onclick="acao(this,' + aspas('cancelar') +
-        ',' + aspas(p.id) + ')">Cancelar este show</button>');
-    }
-
-    // O modo de publicação não é um botão: é uma escolha que fica valendo. Vai com
-    // rótulo, porque um seletor solto no meio de botões não diz o que escolhe.
-    var seletorModo =
-      '<label class="escolhaModo">Publicação: ' +
-      '<select onchange="trocarModo(this,' + aspas(p.id) + ')">' +
-      opt('', 'como no ajuste geral', p.modo) +
-      opt('AUTOMATICO', 'automática', p.modo) +
-      opt('APROVACAO', 'só depois de eu aprovar', p.modo) +
-      '</select></label>';
-
-    // O CARTÃO DOS DADOS: tudo que a banda preencheu, num lugar só.
+    // O sistema virou painel de coleta: a banda manda os dados e as fotos, e as
+    // artes são feitas fora. Então saíram daqui a galeria das artes, o refazer, o
+    // aprovar, o reprovar, o pausar, o recalcular horários, as legendas e o modo de
+    // publicação — tudo isso falava de um trabalho que o sistema não faz mais.
     //
-    // Antes, metade disso estava espalhada na linha de cima do cartão e a outra
-    // metade não aparecia em lugar nenhum — o couvert e os perfis da colaboração
-    // ficavam guardados sem nunca serem mostrados, justamente os dois que vão
-    // escritos na arte e na publicação e que mais precisam ser conferidos antes de
-    // aprovar. Para falar com a banda era preciso abrir a planilha.
-    //
-    // Cada dado tem o seu botão de copiar, e há um que copia tudo: copiar um a um
-    // serve para colar um telefone numa ligação, e copiar tudo serve para mandar a
-    // ficha inteira para alguém.
+    // O que sobrou é o que um painel de coleta precisa ter: quem é a banda, o que
+    // ela preencheu, as fotos que mandou, e como levar tudo isso embora.
     var dados = dadosDaBanda(p);
-    var cartaoDados =
-      '<details class="fichaBox"><summary>Dados da banda</summary>' +
+
+    var ficha =
+      '<div class="secao">' +
+      '<div class="tituloSecao">Dados da banda' +
+        '<button class="b mini" onclick="copiarFicha(this,' + aspas(p.id) + ')">' +
+        'copiar tudo</button></div>' +
       '<div class="ficha">' +
       dados.map(function(d){
-        return '<div class="campo">' +
-          '<span class="rot">'+esc(d.rotulo)+'</span>' +
-          '<span class="val">'+esc(d.valor)+'</span>' +
+        return '<div class="campo' + (d.vazio ? ' semValor' : '') + '">' +
+          '<span class="rot">' + esc(d.rotulo) + '</span>' +
+          '<span class="val">' + esc(d.valor) + '</span>' +
           (d.copiavel
-            ? '<button class="b mini" title="copiar só este" ' +
-              'onclick="copiar(this,'+JSON.stringify(d.valor).replace(/"/g,'&quot;')+')">copiar</button>'
+            ? '<button class="b mini copia" title="copiar ' + esc(d.rotulo.toLowerCase()) +
+              '" onclick="copiarCampo(this,' + aspas(p.id) + ',' + aspas(d.rotulo) + ')">' +
+              'copiar</button>'
             : '') +
           '</div>';
       }).join('') +
-      '</div>' +
-      '<div class="acoes" style="margin-top:10px">' +
-      '<button class="b" onclick="copiarFicha(this,\''+p.id+'\')">Copiar todos os dados</button>' +
-      '</div></details>';
+      '</div></div>';
 
-    // O CARTÃO, montado de cima para baixo na ordem em que se lê:
-    //
-    //   1. quem é e quando — o cabeçalho;
-    //   2. em que pé está e o que fazer agora — a faixa de próximo passo;
-    //   3. o que deu errado, se deu;
-    //   4. o que a banda preencheu — fechado, porque é consulta e não leitura;
-    //   5. as fotos que ela mandou — é onde se conserta o que saiu ruim;
-    //   6. as artes e a única ação de refazê-las;
-    //   7. as ações: a principal, as de apoio, e por último a que cancela.
-    var passo = proximoPasso(p);
-    var situacaoLegivel = SITUACAO_EM_PALAVRAS[p.situacao] ||
-      String(p.situacao).replace(/_/g, ' ').toLowerCase();
+    var acoesFinais = [];
+    if ((p.fotos || []).length){
+      acoesFinais.push('<button class="b forte" onclick="baixarFotosTodas(this,' +
+        aspas(p.id) + ')">Baixar todas as fotos</button>');
+    }
+    if (p.pastaUrl){
+      acoesFinais.push('<a class="b" href="' + esc(p.pastaUrl) + '" target="_blank">' +
+        'Abrir a pasta no Drive</a>');
+    }
+    acoesFinais.push('<button class="b" onclick="mudarShow(this,' + aspas(p.id) +
+      ')">Corrigir data ou hora</button>');
+
+    var perigo = ['CANCELADA'].indexOf(p.situacao) < 0
+      ? '<div class="acoes perigo"><button class="b risco" onclick="acao(this,' +
+        aspas('cancelar') + ',' + aspas(p.id) + ')">Cancelar esta inscrição</button></div>'
+      : '';
 
     return '<div class="cartao">' +
       '<div class="linha">' +
         '<div class="quem">' +
           '<div class="banda">' + esc(p.banda) + '</div>' +
-          '<div class="meta">' + esc(p.dataShow) + ' · ' + esc((p.diaSemana || '').toLowerCase()) +
-            ' · ' + esc(p.horaShow) +
-            (p.instagram ? ' · ' + esc(p.instagram) : '') + '</div>' +
+          '<div class="meta">' + esc(p.dataShow) + ' · ' +
+            esc((p.diaSemana || '').toLowerCase()) + ' · ' + esc(p.horaShow) + '</div>' +
         '</div>' +
-        '<span class="etq e-' + esc(p.situacao) + '">' + esc(situacaoLegivel) + '</span>' +
+        (p.situacao === 'CANCELADA'
+          ? '<span class="etq e-CANCELADA">cancelada</span>'
+          : '<span class="etq e-inscrita">inscrita em ' + esc(p.recebidoEm || '') + '</span>') +
       '</div>' +
 
-      (passo ? '<div class="passo t-' + passo.tom + '">' + esc(passo.texto) + '</div>' : '') +
-
-      // O erro vem ANTES de tudo que se possa fazer: é ele que explica por que a
-      // tela está como está.
-      (p.erro ? '<div class="erroCaixa"><b>O que impediu:</b> ' + esc(p.erro) + '</div>' : '') +
-      avisosEmLista(p) +
-
-      cartaoDados + fotos + galeria +
+      ficha + fotos +
 
       '<div class="acoesCartao">' +
-        (principal.length ? '<div class="acoes principal">' + principal.join('') + '</div>' : '') +
-        '<div class="acoes apoio">' + apoio.join('') + seletorModo + '</div>' +
-        (perigo.length ? '<div class="acoes perigo">' + perigo.join('') + '</div>' : '') +
+        '<div class="acoes principal">' + acoesFinais.join('') + '</div>' +
+        perigo +
       '</div>' +
       '</div>';
   }).join('');
@@ -774,30 +575,36 @@ function desenharProgramacoes(){
 //
 // Dado que ela não preencheu aparece assim mesmo, dizendo que está vazio: um campo
 // que some da ficha é indistinguível de um campo que ninguém pensou em mostrar, e
-// "sem couvert" é informação — quer dizer entrada franca, e a arte sai sem a linha
-// do preço.
+// "sem couvert" é informação — quer dizer entrada franca.
+//
+// `vazio` marca os que não têm resposta, para a tela os mostrar apagados em vez de
+// com o mesmo peso de um dado de verdade. `copiavel` é falso neles: não há o que
+// copiar, e um botão que copia nada é um botão que mente.
 function dadosDaBanda(p){
   var fotos = (p.fotos || []).length;
-  var linhas = [
-    { rotulo: 'Banda', valor: p.banda || '—', copiavel: !!p.banda },
-    { rotulo: 'Data do show', valor: (p.dataShow || '—') +
-        (p.diaSemana ? ' · ' + p.diaSemana.toLowerCase() : ''), copiavel: !!p.dataShow },
-    { rotulo: 'Horário do show', valor: p.horaShow || '—', copiavel: !!p.horaShow },
-    { rotulo: 'Telefone', valor: p.telefone || '— (não informado)', copiavel: !!p.telefone },
-    { rotulo: 'Instagram', valor: p.instagram || '— (não informado)', copiavel: !!p.instagram },
+  var colab = (p.colabs && p.colabs.length) ? p.colabs[0] : '';
+  return [
+    { rotulo: 'Banda', valor: p.banda || '—', copiavel: !!p.banda, vazio: !p.banda },
+    { rotulo: 'Data do show',
+      valor: (p.dataShow || '—') + (p.diaSemana ? ' · ' + p.diaSemana.toLowerCase() : ''),
+      copiavel: !!p.dataShow, vazio: !p.dataShow },
+    { rotulo: 'Hora do show', valor: p.horaShow || '—',
+      copiavel: !!p.horaShow, vazio: !p.horaShow },
+    { rotulo: 'Telefone', valor: p.telefone || 'não informado',
+      copiavel: !!p.telefone, vazio: !p.telefone },
+    { rotulo: 'Instagram', valor: p.instagram || 'não informado',
+      copiavel: !!p.instagram, vazio: !p.instagram },
     { rotulo: 'Couvert', valor: p.couvert ? 'R$ ' + p.couvert : 'sem couvert (entrada franca)',
-      copiavel: !!p.couvert },
-    { rotulo: 'Colaboração', valor: (p.colabs && p.colabs.length)
-        ? p.colabs.join(', ') : 'não pediu colaboração',
-      copiavel: !!(p.colabs && p.colabs.length) },
-    { rotulo: 'Fotos enviadas', valor: fotos + (fotos === 1 ? ' foto' : ' fotos') +
-        (p.juntar ? ' · integrantes separados, para juntar numa foto só' : '') +
-        (p.temLogo ? ' · com logo' : ' · sem logo'), copiavel: false },
-    { rotulo: 'Inscrita em', valor: p.recebidoEm || '—', copiavel: false },
-    { rotulo: 'Situação', valor: (p.situacao || '').replace(/_/g, ' ').toLowerCase(),
-      copiavel: false }
+      copiavel: !!p.couvert, vazio: !p.couvert },
+    { rotulo: 'Coautor no post', valor: colab || 'não pediu colaboração',
+      copiavel: !!colab, vazio: !colab },
+    { rotulo: 'Fotos', valor: fotos + (fotos === 1 ? ' foto' : ' fotos') +
+        (p.juntar ? ' · de integrantes separados' : '') +
+        (p.temLogo ? ' · com logo' : ' · sem logo'),
+      copiavel: false, vazio: !fotos },
+    { rotulo: 'Inscrita em', valor: p.recebidoEm || '—', copiavel: false,
+      vazio: !p.recebidoEm }
   ];
-  return linhas;
 }
 
 // O texto da ficha inteira, pronto para colar numa conversa.
@@ -808,9 +615,18 @@ function fichaEmTexto(p){
 }
 
 function copiarFicha(botao, id){
-  var p = ((dados && dados.programacoes) || []).filter(function(x){ return x.id === id; })[0];
+  var p = acharPrograma(id);
+  if (p) copiar(botao, fichaEmTexto(p));
+}
+
+// Copiar um campo só, pelo rótulo. O valor não viaja dentro do atributo do botão
+// de propósito: telefone e @ com aspas ou acento já quebraram HTML montado assim,
+// e aqui o botão carrega só o rótulo, que é texto que nós mesmos escrevemos.
+function copiarCampo(botao, id, rotulo){
+  var p = acharPrograma(id);
   if (!p) return;
-  copiar(botao, fichaEmTexto(p));
+  var campo = dadosDaBanda(p).filter(function(d){ return d.rotulo === rotulo; })[0];
+  if (campo) copiar(botao, campo.valor);
 }
 
 // Copiar de dentro do painel.
@@ -906,39 +722,7 @@ function mudarShow(botao, id){
   chamar('painelAlterarShow', [id, d, h], null, 'alterar|' + id, botao);
 }
 
-function aprovarMarcadas(botao, id){
-  var marcadas = [].slice.call(
-    document.querySelectorAll('input[type=checkbox][data-prog="' + id + '"]'));
-  var escolhidas = marcadas.filter(function(c){ return c.checked; })
-                           .map(function(c){ return c.getAttribute('data-peca'); });
-  if (!escolhidas.length){
-    recado('Marque pelo menos uma arte para publicar, ou use Reprovar.', 6000);
-    return;
-  }
-  var fora = marcadas.length - escolhidas.length;
-  if (fora && !confirm(fora + ' arte(s) ficam de fora e não serão publicadas. ' +
-                       'As outras ' + escolhidas.length + ' entram na fila. Continuar?')) return;
-  chamar('painelAprovar', [id, escolhidas], null, 'aprovar|' + id, botao);
-}
 
-function baixarTodas(botao, id){
-  // Juntar seis artes num .zip leva alguns segundos, e durante eles o botão ficava
-  // clicável: clicar de novo montava um segundo .zip e baixava o arquivo duas vezes.
-  if (botao){ botao.disabled = true; botao.textContent = 'juntando…'; }
-  var soltar = function(){
-    if (botao){ botao.disabled = false; botao.textContent = 'Baixar as artes'; }
-  };
-  recado('Juntando as artes…', 20000);
-  google.script.run
-    .withSuccessHandler(function(z){
-      soltar();
-      baixarBase64(z);
-      recado(z.quantas + ' artes baixadas' +
-        (z.falhas && z.falhas.length ? ' (' + z.falhas.length + ' falharam)' : '') + '.', 6000);
-    })
-    .withFailureHandler(function(e){ soltar(); recado('Não consegui: ' + e.message, 9000); })
-    .painelBaixarArtes(CHAVE, id);
-}
 
 function baixarRelatorio(periodo){
   recado('Montando o relatório… as artes entram embutidas, então demora um pouco.', 60000);
@@ -959,26 +743,6 @@ function opt(v,r,atual){ return '<option value="'+v+'"'+(atual===v?' selected':'
 
 
 
-function verLegendas(botao, id){
-  var p = acharPrograma(id);
-  if (!p) return;
-  var html = '<h3 style="margin-bottom:4px">Legendas — '+esc(p.banda)+'</h3>' +
-    '<p class="meta" style="margin-bottom:10px">Cada legenda acompanha a publicação ' +
-    'daquele layout. Story não leva legenda — o Instagram não aceita. Pode reescrever ' +
-    'à vontade e salvar; se as publicações já estiverem na fila, o texto delas também ' +
-    'é trocado.</p>';
-  ['A','B','C'].forEach(function(o){
-    if (!p.legendas[o]) return;
-    html += '<p class="meta" style="margin-top:12px">Publicação ' + o + '</p>' +
-            '<textarea id="leg'+o+'">'+esc(p.legendas[o])+'</textarea>';
-  });
-  html += '<div class="acoes" style="margin-top:12px">' +
-    '<button class="b forte" onclick="salvarLegendas(\''+id+'\')">Salvar legendas</button>' +
-    '<button class="b" onclick="fecharJanela()">Fechar</button>' +
-    '</div>';
-  document.getElementById('janelaCorpo').innerHTML = html;
-  document.getElementById('janela').showModal();
-}
 
 // ------------------------------------------------- fotos enviadas pela banda
 
@@ -1063,14 +827,19 @@ function baixarFoto(id, indice, qual){
     .painelBaixarFoto(CHAVE, id, indice, qual);
 }
 
-function baixarFotosTodas(id){
+function baixarFotosTodas(botao, id){
+  if (botao){ botao.disabled = true; botao.textContent = 'juntando…'; }
+  var soltar = function(){
+    if (botao){ botao.disabled = false; botao.textContent = 'Baixar todas as fotos'; }
+  };
   recado('Juntando as fotos…', 25000);
   google.script.run
     .withSuccessHandler(function(z){
+      soltar();
       baixarBase64(z);
       recado(z.quantas + ' arquivo(s) baixado(s).', 6000);
     })
-    .withFailureHandler(function(e){ recado('Não consegui: ' + e.message, 9000); })
+    .withFailureHandler(function(e){ soltar(); recado('Não consegui: ' + e.message, 9000); })
     .painelBaixarFotosTodas(CHAVE, id);
 }
 
@@ -1208,40 +977,37 @@ function salvarLegendas(id){
     .painelSalvarLegendas(CHAVE, id, textos);
 }
 
-function desenharCalendario(){
+function desenharAgenda(){
+  // Era o calendário das publicações do Instagram. Sem publicação, aquela lista
+  // ficaria vazia para sempre. Virou a agenda dos SHOWS: quem toca, quando, e
+  // quando se inscreveu — que é o que um painel de coleta precisa mostrar.
   var alvo = document.getElementById('calendario');
-  if (!dados.agendamentos.length){
-    alvo.innerHTML = '<div class="vazio">Nada agendado ainda.</div>'; return;
+  var lista = ((dados && dados.programacoes) || []).filter(function(p){
+    return p.situacao !== 'CANCELADA';
+  }).slice().sort(function(a, b){
+    return String(a.dataShowISO) < String(b.dataShowISO) ? -1 : 1;
+  });
+
+  if (!lista.length){
+    alvo.innerHTML = '<div class="vazio">Nenhum show inscrito ainda.</div>';
+    return;
   }
-  alvo.innerHTML = '<div class="cartao"><table><thead><tr><th>Quando</th><th>Banda</th>' +
-    '<th>Peça</th><th>Situação</th><th></th></tr></thead><tbody>' +
-    dados.agendamentos.map(function(a){
-      return '<tr><td>'+esc(a.quando)+'</td><td>'+esc(a.banda)+'</td>' +
-        '<td>'+(a.canal==='FEED'?'feed':'story')+' '+esc(a.opcao)+
-        (a.url?' · <a href="'+esc(a.url)+'" target="_blank" style="color:#8fc6ff">ver</a>':'')+'</td>' +
-        '<td><span class="etq e-'+esc(a.situacao)+'">'+esc(a.situacao)+'</span>' +
-        (a.erro?'<div class="meta" style="color:#ff8d95">'+esc(a.erro)+'</div>':'')+'</td>' +
-        '<td>'+(a.situacao==='AGENDADO'?'<button class="b" onclick="chamar(\'painelCancelarPost\',[\''+esc(a.postId)+'\'])">Tirar da fila</button>':'')+'</td></tr>';
+
+  var hoje = new Date().toISOString().slice(0, 10);
+  alvo.innerHTML = '<div class="cartao"><table><thead><tr>' +
+    '<th>Data do show</th><th>Dia</th><th>Hora</th><th>Banda</th>' +
+    '<th>Inscrita em</th></tr></thead><tbody>' +
+    lista.map(function(p){
+      var passou = String(p.dataShowISO) < hoje;
+      return '<tr' + (passou ? ' class="passou"' : '') + '>' +
+        '<td>' + esc(p.dataShow) + '</td>' +
+        '<td>' + esc((p.diaSemana || '').toLowerCase()) + '</td>' +
+        '<td>' + esc(p.horaShow) + '</td>' +
+        '<td>' + esc(p.banda) + '</td>' +
+        '<td class="meta">' + esc(p.recebidoEm || '—') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 }
 
-function desenharConfig(){
-  document.getElementById('config').innerHTML = '<div class="cartao">' +
-    dados.config.map(function(c){
-      var campo;
-      if (['SIM','NAO'].indexOf(c.valor.toUpperCase())>=0){
-        campo = '<select id="c_'+c.chave+'">'+opt('SIM','SIM',c.valor)+opt('NAO','NAO',c.valor)+'</select>';
-      } else if (c.chave === 'MODO_OPERACAO'){
-        campo = '<select id="c_'+c.chave+'">'+opt('AUTOMATICO','AUTOMATICO',c.valor)+opt('APROVACAO','APROVACAO',c.valor)+'</select>';
-      } else {
-        campo = '<input id="c_'+c.chave+'" value="'+esc(c.valor)+'" size="12">';
-      }
-      return '<div class="cfg"><div><code>'+esc(c.chave)+'</code>' +
-        '<div class="ajuda">'+esc(c.ajuda)+'</div></div>' +
-        '<div style="display:flex;gap:6px">'+campo+
-        '<button class="b" onclick="salvarCfg(\''+c.chave+'\')">Salvar</button></div></div>';
-    }).join('') + '</div>';
-}
 
 function salvarCfg(chave){
   chamar('painelDefinirConfig', [chave, document.getElementById('c_'+chave).value]);
@@ -1262,7 +1028,7 @@ document.querySelectorAll('nav button').forEach(function(b){
   b.onclick = function(){
     document.querySelectorAll('nav button').forEach(function(x){ x.classList.remove('on'); });
     b.classList.add('on');
-    ['programacoes','calendario','config','historico'].forEach(function(id){
+    ['programacoes','calendario','historico'].forEach(function(id){
       document.getElementById(id).hidden = (id !== b.dataset.aba);
     });
   };

@@ -182,17 +182,49 @@ function painelPreviasDaProgramacao(chave, id) {
  * para onde o navegador não manda essa sessão. Medido: o endereço devolve 302, e a
  * tela ficava com o quadrado de imagem quebrada.
  */
-function previaDeArquivo(idArquivo) {
-  var arquivo = DriveApp.getFileById(idArquivo);
+function previaDeArquivo(idArquivo, lado) {
+  lado = lado || 400;
 
-  // O Drive guarda uma miniatura pronta de cada imagem, e é ela que queremos: pesa
-  // uns poucos quilobytes. Nem todo arquivo tem — e aí vai o original, mas só se for
-  // pequeno o bastante para não travar a tela.
+  // CAMINHO BOM: pedir ao Drive a miniatura NO TAMANHO QUE SE QUER.
+  //
+  // O getThumbnail() do Apps Script não deixa escolher tamanho, e o que ele devolve
+  // não é pequeno: medido num relatório de 17 bandas, vieram imagens de 1600x800 e
+  // 1446x1088, e o PDF fechou em 15,7 MB. Isso não é miniatura, é a foto.
+  //
+  // O endereço de miniatura do Drive aceita um sufixo de tamanho (=s400). Ele não é
+  // público — só responde a quem está autenticado —, e aqui quem pede é o próprio
+  // script, com o token dele. Nenhuma permissão nova: o acesso ao Drive e o de fazer
+  // chamadas externas já são usados pelo resto do sistema.
+  try {
+    var ficha = UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(idArquivo) +
+      '?fields=thumbnailLink&supportsAllDrives=true',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        muteHttpExceptions: true });
+    if (ficha.getResponseCode() === 200) {
+      var link = JSON.parse(ficha.getContentText()).thumbnailLink;
+      if (link) {
+        link = link.replace(/=s\d+(-c)?$/, '') + '=s' + lado;
+        var r = UrlFetchApp.fetch(link, {
+          headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+          muteHttpExceptions: true });
+        if (r.getResponseCode() === 200) {
+          var b = r.getBlob();
+          return 'data:' + (b.getContentType() || 'image/jpeg') + ';base64,' +
+            Utilities.base64Encode(b.getBytes());
+        }
+      }
+    }
+  } catch (e) { /* cai para o caminho de baixo */ }
+
+  // CAMINHO DE RESERVA: a miniatura que o Apps Script dá, sem escolher tamanho.
+  // Pesa mais, mas é melhor que a foto não aparecer.
+  var arquivo = DriveApp.getFileById(idArquivo);
   var blob = null;
-  try { blob = arquivo.getThumbnail(); } catch (e) { blob = null; }
+  try { blob = arquivo.getThumbnail(); } catch (e2) { blob = null; }
   if (!blob) {
     var tamanho = 0;
-    try { tamanho = arquivo.getSize(); } catch (e) { tamanho = 0; }
+    try { tamanho = arquivo.getSize(); } catch (e3) { tamanho = 0; }
     if (!tamanho || tamanho > 900 * 1024) return '';
     blob = arquivo.getBlob();
   }

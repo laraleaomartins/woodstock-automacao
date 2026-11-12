@@ -235,8 +235,9 @@ function painelRelatorio(chave, periodo) {
     return paraData(b.DataShow).getTime() - paraData(a.DataShow).getTime();
   });
 
-  var posts = linhas(ABA.AGENDAMENTOS);
-  var html = montarHtmlDoRelatorio(faixa, de, ate, progs, posts);
+  // As fotos de todas as bandas numa passada só, antes de montar as páginas.
+  previasDoRelatorio(progs);
+  var html = montarHtmlDoRelatorio(faixa, de, ate, progs);
   var pdf = Utilities.newBlob(html, 'text/html', 'relatorio.html')
     .getAs('application/pdf')
     .setName('woodstock_' + faixa.nome + '_' + fmt(ate, 'yyyy-MM-dd') + '.pdf');
@@ -294,156 +295,143 @@ function miniaturaEmbutida(url) {
  * Nossa "campanha" é o show: é a unidade em que esta casa trabalha, e é ela que
  * agrupa as seis peças e as publicações que saíram delas.
  */
-function montarHtmlDoRelatorio(faixa, de, ate, progs, posts) {
-  var porProg = {};
-  posts.forEach(function (a) {
-    var k = String(a.ProgramacaoId);
-    (porProg[k] = porProg[k] || []).push(a);
-  });
-
-  var contas = { feed: 0, story: 0, publicadas: 0, falhas: 0, agendadas: 0 };
+/**
+ * O relatório das inscrições do período, em PDF.
+ *
+ * Era o relatório das ARTES: uma página por show com as seis peças em miniatura e o
+ * que cada publicação fez no Instagram. Sem artes e sem publicação, aquilo ficaria
+ * vazio. Agora é o que um painel de coleta tem a prestar: quem se inscreveu, o que
+ * cada banda preencheu, e as fotos que mandou.
+ *
+ * As fotos entram em miniatura, por escolha de quem usa: o relatório vira um
+ * catálogo visual das bandas do período, e não só uma tabela de nomes.
+ */
+function montarHtmlDoRelatorio(faixa, de, ate, progs) {
+  var totalFotos = 0;
+  var comCouvert = 0;
   progs.forEach(function (p) {
-    var artes = {};
-    try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
-    contas.feed += Object.keys(artes.FEED || {}).length;
-    contas.story += Object.keys(artes.STORY || {}).length;
-    (porProg[String(p.ID)] || []).forEach(function (a) {
-      if (String(a.Situacao) === 'PUBLICADO') contas.publicadas++;
-      else if (String(a.Situacao) === 'FALHA') contas.falhas++;
-      else if (String(a.Situacao) === 'AGENDADO') contas.agendadas++;
-    });
+    var r = recebidosDe(p);
+    totalFotos += (r.fotos || []).length;
+    if (r.couvert) comCouvert++;
   });
-  var pecas = contas.feed + contas.story;
 
-  var numero = function (valor, rotulo) {
-    return '<div class="num"><b>' + valor + '</b><span>' + rotulo + '</span></div>';
-  };
-
-  // A capa é clara, e não escura como o documento que serviu de modelo. Não é
-  // escolha de gosto: o conversor de PDF do Google escurece toda cor clara da
-  // página em cerca de um terço — medido, #ffffff sai #ababab e #ff6b5e sai
-  // #ab473f —, provavelmente para que texto branco não suma em papel branco. Numa
-  // capa escura isso deixa o título cinza-chumbo, e não há como compensar: já não
-  // existe cor mais clara que o branco para pedir. Em fundo claro com letra escura
-  // o mesmo desvio não aparece, e a capa sai limpa.
   var capa =
     '<section class="folha capa">' +
-    marcaDaCapa(progs) +
-    '<p class="etiqueta">Prestação de contas · comunicação e redes sociais</p>' +
-    '<h1>' + faixa.titulo + ' <em>' + fmt(ate, 'yyyy') + '</em></h1>' +
-    '<div class="numeros">' +
-    numero(pecas, 'peças produzidas') +
-    numero(progs.length, progs.length === 1 ? 'show' : 'shows') +
-    numero(contas.feed, 'posts de feed') +
-    numero(contas.story, 'stories') +
-    numero(contas.publicadas, contas.publicadas === 1 ? 'publicada' : 'publicadas') +
-    '</div>' +
-    '<p class="pe">' + ENDERECO + ' · ' + cfg('PERFIL_OFICIAL') + '</p>' +
+      marcaDaCapa(progs) +
+      '<div class="etiqueta">' + esc(faixa.titulo) + '</div>' +
+      '<h1>Inscrições recebidas</h1>' +
+      '<div class="numeros">' +
+        bloco(progs.length, progs.length === 1 ? 'banda inscrita' : 'bandas inscritas') +
+        bloco(totalFotos, totalFotos === 1 ? 'foto recebida' : 'fotos recebidas') +
+        bloco(comCouvert, comCouvert === 1 ? 'show com couvert' : 'shows com couvert') +
+      '</div>' +
+      '<p class="nota">As artes destes shows são feitas fora do sistema. Este ' +
+        'relatório é o que as bandas enviaram.</p>' +
+      rodape(ate) +
     '</section>';
 
-  var linhasResumo = progs.map(function (p) {
-    var artes = {};
-    try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
-    var nf = Object.keys(artes.FEED || {}).length;
-    var ns = Object.keys(artes.STORY || {}).length;
-    var meus = porProg[String(p.ID)] || [];
-    var quando = meus.length
-      ? fmt(new Date(meus[0].QuandoISO), 'dd/MM') + ' a ' +
-        fmt(new Date(meus[meus.length - 1].QuandoISO), 'dd/MM')
-      : '—';
-    return '<tr><td class="mes">' + fmt(paraData(p.DataShow), 'dd/MM') + '</td>' +
-      '<td class="campanha">' + p.Banda + '</td>' +
-      '<td>' + quando + '</td>' +
-      '<td>' + (nf ? nf + ' feed' : '') + (nf && ns ? ' + ' : '') +
-        (ns ? ns + ' stories' : '') + (!nf && !ns ? 'sem artes' : '') + '</td>' +
-      '<td class="total">' + (nf + ns) + '</td></tr>';
-  }).join('');
+  if (!progs.length) {
+    return folhaInteira(capa +
+      '<section class="folha"><h2>Nenhuma inscrição neste período</h2>' +
+      '<p class="nota">Nenhuma banda se inscreveu para um show entre ' +
+      fmt(de, 'dd/MM/yyyy') + ' e ' + fmt(ate, 'dd/MM/yyyy') + '.</p>' +
+      rodape(ate) + '</section>');
+  }
 
   var resumo =
-    '<section class="folha clara">' +
-    '<p class="etiqueta v">Resumo</p>' +
-    '<h2>O que foi entregue<span class="periodo">' +
-      fmt(de, 'dd/MM') + ' a ' + fmt(ate, 'dd/MM/yyyy') + '</span></h2>' +
-    '<table><thead><tr><th>Show</th><th>Banda ou artista</th><th>Publicações</th>' +
-      '<th>Peças</th><th class="total">Total</th></tr></thead><tbody>' +
-      (linhasResumo || '<tr><td colspan="5">Nenhum show neste período.</td></tr>') +
-      '<tr class="soma"><td></td><td>Total</td><td></td>' +
-      '<td>' + contas.feed + ' feed · ' + contas.story + ' stories</td>' +
-      '<td class="total">' + pecas + '</td></tr>' +
-    '</tbody></table>' +
-    '<div class="colunas">' +
-    '<div><h3>Como foi feito</h3><p>Cada show entra pelo cadastro da banda, com ' +
-      'fotos e logotipo. O sistema trata as imagens, monta as seis peças — três ' +
-      'layouts, em feed (4:5) e story (9:16) — e escreve as legendas. Toda peça sai ' +
-      'com a logo oficial, couvert, endereço e @.</p></div>' +
-    '<div><h3>Agendamento</h3><p>' + contas.publicadas + ' publicações saíram no ' +
-      'período' + (contas.agendadas ? ' e ' + contas.agendadas + ' seguem na fila' : '') +
-      (contas.falhas ? '. ' + contas.falhas + ' falharam e foram registradas' : '') +
-      '. As peças são distribuídas entre o cadastro e o início do show, sem duas no ' +
-      'mesmo horário.</p></div>' +
-    '<div><h3>Identidade</h3><p>Vermelho Woodstock e tridente como base, fotos em ' +
-      'preto e branco de alto contraste, integradas ao fundo da arte. Cada show ' +
-      'sai nos três layouts do kit, sem perder a marca do bar.</p></div>' +
-    '</div>' +
-    rodape(ate) + '</section>';
+    '<section class="folha"><h2>As bandas do período</h2>' +
+    '<table><thead><tr><th>Show</th><th>Banda</th><th>Instagram</th>' +
+    '<th>Telefone</th><th>Couvert</th><th>Fotos</th></tr></thead><tbody>' +
+    progs.map(function (p) {
+      var r = recebidosDe(p);
+      return '<tr>' +
+        '<td class="nowrap">' + fmt(paraData(p.DataShow), 'dd/MM') + ' · ' +
+          horaTexto(p.HoraShow) + '</td>' +
+        '<td><b>' + esc(p.Banda) + '</b></td>' +
+        '<td>' + esc(p.InstagramBanda || '—') + '</td>' +
+        '<td class="nowrap">' + esc(p.Telefone || '—') + '</td>' +
+        '<td class="nowrap">' + (r.couvert ? 'R$ ' + esc(r.couvert) : 'franca') + '</td>' +
+        '<td>' + (r.fotos || []).length + '</td>' +
+        '</tr>';
+    }).join('') +
+    '</tbody></table>' + rodape(ate) + '</section>';
 
-  var paginas = progs.map(function (p, i) {
-    var artes = {};
-    try { artes = JSON.parse(p.Artes || '{}'); } catch (x) { artes = {}; }
+  var paginas = progs.map(function (p) {
+    var r = recebidosDe(p);
+    var colab = (r.colabs || [])[0] || '';
 
-    var minis = [];
-    ['FEED', 'STORY'].forEach(function (canal) {
-      Object.keys(artes[canal] || {}).sort().forEach(function (opcao) {
-        var dados = miniaturaEmbutida(artes[canal][opcao]);
-        if (dados) {
-          minis.push('<figure><img src="' + dados + '"><figcaption>' +
-            (canal === 'FEED' ? 'feed' : 'story') + ' · opção ' + opcao +
-            '</figcaption></figure>');
-        }
-      });
-    });
+    // As fotos de todas as bandas são buscadas numa viagem só, antes de montar as
+    // páginas — ver previasDoRelatorio. Buscando uma a uma, o relatório de um mês
+    // com dez bandas levaria minutos.
+    var minis = (p._previas || []).filter(function (d) { return !!d; })
+      .map(function (d) { return '<figure><img src="' + d + '"></figure>'; }).join('');
 
-    var meus = (porProg[String(p.ID)] || []).sort(function (x, y) {
-      return String(x.QuandoISO) < String(y.QuandoISO) ? -1 : 1;
-    });
-    var tabela = meus.length
-      ? '<table class="posts"><thead><tr><th>Quando</th><th>Peça</th>' +
-        '<th>Situação</th><th>Observação</th></tr></thead><tbody>' +
-        meus.map(function (a) {
-          return '<tr><td>' + fmt(new Date(a.QuandoISO), 'dd/MM HH:mm') + '</td><td>' +
-            (String(a.Canal) === 'FEED' ? 'feed' : 'story') + ' · ' + a.Opcao +
-            '</td><td class="s-' + a.Situacao + '">' + String(a.Situacao).toLowerCase() +
-            '</td><td>' + String(a.Erro || '—') + '</td></tr>';
-        }).join('') + '</tbody></table>'
-      : '<p class="nota">Nenhuma publicação agendada para este show.</p>';
-
-    var nf = Object.keys(artes.FEED || {}).length;
-    var ns = Object.keys(artes.STORY || {}).length;
-
-    return '<section class="folha clara">' +
-      '<p class="etiqueta v">' + fmt(paraData(p.DataShow), 'dd/MM/yyyy') +
-        ' · show ' + (i + 1) + '</p>' +
-      '<div class="cabeca"><h2>' + p.Banda + '</h2>' +
-      '<div class="selos"><span><b>' + (nf + ns) + '</b> peças</span>' +
-      '<span><b>Formato</b> feed 1080×1350 · story 1080×1920</span></div></div>' +
-      '<p class="linhaFina">' + String(p.DiaSemana || '') + ' · show às ' +
-        horaTexto(p.HoraShow) + ' · ' + p.InstagramBanda +
-        ' · situação: ' + String(p.Situacao).toLowerCase().replace(/_/g, ' ') + '</p>' +
-      (minis.length ? '<div class="artes">' + minis.join('') + '</div>'
-        : '<p class="nota">As artes deste show não estão guardadas.</p>') +
-      tabela +
-      (avisosLegiveis(p.Avisos)
-        ? '<p class="nota"><b>Avisos da produção:</b> ' + avisosLegiveis(p.Avisos) + '</p>'
-        : '') +
-      rodape(ate) + '</section>';
+    return '<section class="folha">' +
+      '<h2>' + esc(p.Banda) + '</h2>' +
+      '<div class="linhaFina">' + fmt(paraData(p.DataShow), 'dd/MM/yyyy') + ' · ' +
+        esc(String(p.DiaSemana || '').toLowerCase()) + ' · ' +
+        horaTexto(p.HoraShow) + '</div>' +
+      '<table class="ficha"><tbody>' +
+        linhaFicha('Telefone', p.Telefone || 'não informado') +
+        linhaFicha('Instagram', p.InstagramBanda || 'não informado') +
+        linhaFicha('Couvert', r.couvert ? 'R$ ' + r.couvert : 'sem couvert (entrada franca)') +
+        linhaFicha('Coautor no post', colab || 'não pediu colaboração') +
+        linhaFicha('Fotos enviadas', (r.fotos || []).length +
+          (r.juntar ? ' · de integrantes separados' : '') +
+          (r.logo ? ' · com logo' : ' · sem logo')) +
+        linhaFicha('Inscrita em', p.RecebidoEm ? fmt(new Date(p.RecebidoEm), 'dd/MM/yyyy HH:mm') : '—') +
+      '</tbody></table>' +
+      (minis ? '<div class="artes">' + minis + '</div>'
+             : '<p class="nota">Esta inscrição não tem foto guardada.</p>') +
+      rodape(ate) +
+    '</section>';
   }).join('');
 
+  return folhaInteira(capa + resumo + paginas);
+}
+
+function linhaFicha(rotulo, valor) {
+  return '<tr><th class="rot">' + esc(rotulo) + '</th><td>' + esc(valor) + '</td></tr>';
+}
+
+function bloco(numero, rotulo) {
+  // Usa o mesmo desenho dos números da capa que o relatório já tinha: três blocos
+  // com uma risca vermelha em cima. Classe nova aqui seria um segundo jeito de
+  // mostrar a mesma coisa.
+  return '<div class="num"><b>' + numero + '</b><span>' + esc(rotulo) + '</span></div>';
+}
+
+/**
+ * As miniaturas das fotos de todas as bandas do relatório, numa passada só.
+ *
+ * Guardadas em `p._previas`, na mesma ordem das fotos. Buscar uma a uma na hora de
+ * montar cada página é o defeito que já tornou o relatório das artes lento: 84
+ * buscas em fila indiana davam 22 segundos.
+ */
+function previasDoRelatorio(progs) {
+  progs.forEach(function (p) {
+    p._previas = (recebidosDe(p).fotos || []).map(function (f) {
+      var usar = f.manual && f.manual.id ? f.manual : f;
+      if (!usar || !usar.id) return '';
+      try {
+        // 320 px bastam para a miniatura impressa de 44 mm do relatório.
+        return previaDeArquivo(usar.id, 320);
+      } catch (e) {
+        return '';
+      }
+    });
+  });
+}
+
+/** O documento inteiro, com as fontes e o estilo do relatório. */
+function folhaInteira(corpo) {
   return '<!doctype html><html><head><meta charset="utf-8">' +
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?' +
     'family=Anton&family=Barlow+Semi+Condensed:wght@400;700&display=swap">' +
     '<style>' + estiloDoRelatorio() +
-    '</style></head><body>' + capa + resumo + paginas + '</body></html>';
+    '</style></head><body>' + corpo + '</body></html>';
 }
+
 
 /**
  * A logo do bar na capa, embutida no arquivo.
@@ -587,6 +575,11 @@ function estiloDoRelatorio() {
     '.s-PUBLICADO{color:#1d7a3c;font-weight:700}' +
     '.s-FALHA{color:' + VERMELHO + ';font-weight:700}' +
     '.nota{font-size:10px;color:#6b615b;margin-top:5mm}' +
+    // A ficha de cada banda: rótulo estreito à esquerda, resposta à direita.
+    'table.ficha{width:auto;min-width:110mm;margin-top:5mm}' +
+    'table.ficha th.rot{width:42mm;border-bottom:1px solid #ece4dd;vertical-align:top}' +
+    'table.ficha td{font-size:11.5px}' +
+    '.nowrap{white-space:nowrap}' +
     // O rodapé FLUI no fim da seção. Preso no pé da página, ele era desenhado por
     // cima das linhas da tabela quando o show tinha muitas publicações — e, depois
     // que as seções deixaram de ter altura fixa, foi parar no fim do documento
