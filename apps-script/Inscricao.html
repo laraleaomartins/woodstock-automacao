@@ -65,6 +65,23 @@
     color:var(--fraco,#9a9a9a);padding-top:2px}
   .valConf{flex:1;font-size:14.5px;line-height:1.35;overflow-wrap:anywhere}
   .linhaConf.vazia .valConf{color:var(--fraco,#9a9a9a);font-style:italic}
+  /* As imagens da conferência. É onde se descobre que a foto escolhida não é a
+     que se pensava — nenhuma contagem mostraria isso. */
+  .blocoConf,.blocoImgs{margin:16px 0 8px;display:block}
+  .imagensConf{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+    gap:8px}
+  .imgConf{margin:0;border:1px solid var(--borda,#2e2e2e);border-radius:9px;
+    overflow:hidden;background:#0f0f0f;position:relative}
+  .imgConf img{width:100%;height:92px;object-fit:cover;display:block;background:#161616}
+  .imgConf figcaption{font-size:10px;color:var(--fraco,#9a9a9a);padding:5px 6px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* A logo quase sempre é PNG transparente: sobre o fundo escuro ela sumiria, e
+     cortada não serviria para conferir nada. */
+  .imgConf.ehLogoConf img{object-fit:contain;background:#e9e9e9;padding:8px}
+  .seloConf{position:absolute;left:5px;top:5px;z-index:1;font-size:9px;
+    letter-spacing:.8px;text-transform:uppercase;background:rgba(0,0,0,.72);
+    color:#f0f0f0;border-radius:4px;padding:2px 6px}
+  .semLogoConf{font-size:12px;color:var(--fraco,#9a9a9a);margin:8px 0 0}
   .acoesConf{display:flex;gap:10px;margin-top:18px}
   .acoesConf button{flex:1;padding:13px 14px;border-radius:9px;font-size:15px;
     cursor:pointer;border:1px solid transparent}
@@ -451,9 +468,9 @@ function oQueFoiPreenchido(){
   if (document.getElementById('querColab').checked){
     itens.push(['Coautor no post', v('colab1')]);
   }
-  itens.push(['Fotos', escolhidas.fotos.length +
-    (escolhidas.fotos.length === 1 ? ' foto' : ' fotos')]);
-  itens.push(['Logotipo', escolhidas.logo ? escolhidas.logo.name : 'não enviou']);
+  // Fotos e logo não entram como texto: "4 fotos" não deixa ninguém perceber que
+  // mandou a foto errada, e é exatamente isso que esta tela existe para pegar. Eles
+  // aparecem como imagem, logo abaixo — ver abrirConferencia.
   return itens;
 }
 
@@ -474,22 +491,58 @@ function dataPorExtenso(iso){
          MESES[Number(partes[1]) - 1] + ' de ' + partes[0];
 }
 
+// Os endereços temporários das imagens mostradas na janela. Precisam ser soltos
+// quando ela fecha: cada um segura o arquivo inteiro na memória do navegador, e
+// abrir e fechar a conferência várias vezes iria empilhando cópias.
+var previasDaConferencia = [];
+
 function abrirConferencia(){
   var corpo = document.getElementById('conferenciaCorpo');
-  corpo.innerHTML = oQueFoiPreenchido().map(function(par){
+  soltarPreviasDaConferencia();
+
+  var html = oQueFoiPreenchido().map(function(par){
     var vazio = !par[1] || par[1] === '—';
     return '<div class="linhaConf' + (vazio ? ' vazia' : '') + '">' +
       '<span class="rotConf">' + par[0] + '</span>' +
       '<span class="valConf">' + escapar(par[1] || '—') + '</span></div>';
   }).join('');
+
+  // AS IMAGENS. É aqui que se descobre que a foto escolhida não é a que se
+  // pensava, ou que a logo que subiu é a antiga — coisas que nenhuma contagem
+  // ("4 fotos") deixaria aparecer.
+  var figura = function(arquivo, rotulo){
+    var url = URL.createObjectURL(arquivo);
+    previasDaConferencia.push(url);
+    return '<figure class="imgConf' + (rotulo ? ' ehLogoConf' : '') + '">' +
+      (rotulo ? '<span class="seloConf">' + rotulo + '</span>' : '') +
+      '<img src="' + url + '" alt="' + escapar(arquivo.name) + '">' +
+      '<figcaption>' + escapar(arquivo.name) + '</figcaption></figure>';
+  };
+
+  var imagens = escolhidas.fotos.map(function(a){ return figura(a, ''); });
+  if (escolhidas.logo) imagens.push(figura(escolhidas.logo, 'logo'));
+
+  html += '<div class="rotConf blocoImgs">' +
+    (escolhidas.logo ? 'Fotos e logotipo' : 'Fotos') + '</div>' +
+    '<div class="imagensConf">' + imagens.join('') + '</div>' +
+    (escolhidas.logo ? '' :
+      '<p class="semLogoConf">Você não enviou logotipo. A inscrição vale sem ele.</p>');
+
+  corpo.innerHTML = html;
   document.getElementById('conferencia').classList.remove('oculto');
   document.body.style.overflow = 'hidden';
   document.getElementById('confirmarEnvio').focus();
 }
 
+function soltarPreviasDaConferencia(){
+  previasDaConferencia.forEach(function(u){ URL.revokeObjectURL(u); });
+  previasDaConferencia = [];
+}
+
 function fecharConferencia(){
   document.getElementById('conferencia').classList.add('oculto');
   document.body.style.overflow = '';
+  soltarPreviasDaConferencia();
 }
 
 function escapar(t){
